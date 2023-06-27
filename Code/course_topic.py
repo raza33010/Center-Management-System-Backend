@@ -112,7 +112,7 @@ def update_ctopic(ctopic_id):
             cur.execute("SELECT * FROM cchapter WHERE id = %s", (course_id,))
             result_1 = cur.fetchone()
             if result and result_1:
-                cur.execute("UPDATE ctopic SET center_id=%s, course_id=%s, unit_id=%s, name=%s, month=%s, descritpion=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, course_id, unit_id, name, month, description, status, updated_at, ctopic_id))
+                cur.execute("UPDATE ctopic SET center_id=%s, course_id=%s, unit_id=%s, name=%s, month=%s, description=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, course_id, unit_id, name, month, description, status, updated_at, ctopic_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'ctopic updated successfully'}
