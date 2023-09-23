@@ -71,20 +71,34 @@ def get_account(account_id):
     cur.close()
 
     if account:
-        response = {'code': '200', 'status': 'true', 'data': account}
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        account_dict = dict(zip(column_names, account))
+
+        response = {'code': '200', 'status': 'true', 'data': account_dict}
         return jsonify(response)
     else:
-        response = {'code': '400', 'status': 'false', 'message': 'account not found'}
+        response = {'code': '400', 'status': 'false', 'message': 'Center not found'}
         return jsonify(response)
 
 @app.route('/account', methods=['GET'])
 def get_all_account():
     cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM account")
-    account = cur.fetchall()
+    accounts = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
     cur.close()
+    data_with_columns = []
+    for account in accounts:
+        account_dict = dict(zip(column_names, account))
+        data_with_columns.append(account_dict)
 
-    response = {'code': '200', 'status': 'true', 'data': account}
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
     return jsonify(response)
 
 @app.route('/del_account/<int:id>', methods=['DELETE'])

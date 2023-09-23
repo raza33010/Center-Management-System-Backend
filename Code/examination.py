@@ -100,10 +100,20 @@ def get_examination(examination_id):
 def get_all_examination():
     cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM examination")
-    users = cur.fetchall()
+    examinations = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
     cur.close()
+    data_with_columns = []
+    for examination in examinations:
+        account_dict = dict(zip(column_names, examination))
+        data_with_columns.append(account_dict)
 
-    response = {'code': '200', 'status': 'true', 'data': users}
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
     return jsonify(response)
 
 @app.route('/del_examination/<int:id>', methods=['DELETE'])
