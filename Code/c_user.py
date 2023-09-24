@@ -91,6 +91,51 @@ def get_all_users():
     response = {'code': '200', 'status': 'true', 'data': users}
     return jsonify(response)
 
+@app.route('/del_user/<int:id>', methods=['DELETE'])
+def delete_user(id):
+    cur = mysql.connection.cursor()
+    user = cur.execute("DELETE FROM c_user WHERE id= %s", (id,))
+    mysql.connection.commit()
+
+    if user:
+        return jsonify({'message': f'result with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'result with id {id} not found'})
+
+
+@app.route('/upd_user/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    form = UserForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        role = form.role.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM c_user WHERE id=%s", (user_id,))
+        user = cur.fetchone()
+
+        if not user:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'user not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            if result:
+                cur.execute("UPDATE c_user SET center_id=%s, name=%s, role=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, role, status, updated_at, user_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'user updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'user not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
