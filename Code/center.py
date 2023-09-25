@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, flash, jsonify, make_response
 from flask_mysqldb import MySQL
-from wtforms import Form, StringField, IntegerField, validators, DateTimeField, DecimalField
+from wtforms import Form, StringField, IntegerField, validators, DateTimeField, DecimalField, DateField, TimeField
 from datetime import datetime
 from flask_wtf.file import FileField, FileAllowed, FileRequired
 from collections import OrderedDict
@@ -14,7 +14,7 @@ app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = ''
 app.config['MYSQL_DB'] = 'center'
 app.config['UPLOADED_DIRECTORY'] = 'uploads/'
-app.config['UPLOAD_EXTENSIONS'] = ['.jpg','.png']
+app.config['UPLOAD_EXTENSIONS'] = ['.jpg','.png','.pdf']
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 app.config['CORS_ALLOW_ALL_ORIGINS'] = True
 CORS(app)
@@ -693,6 +693,468 @@ def update_class(class_id):
     else:
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
+
+# Duty Apis #..............................................................
+class DutyForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    user_id = IntegerField('User_id', [validators.InputRequired()])
+    job = StringField('Job', [validators.InputRequired()])
+    date = DateField('Date')
+    time = TimeField('Time')
+    assigned_by = StringField('Assigned By', [validators.InputRequired()])
+    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+@app.route('/add_duty', methods=['POST'])
+def add_duty():
+    form = DutyForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        job = form.job.data
+        date = form.date.data
+        time = form.time.data
+        assigned_by = form.assigned_by.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+        result_1 = cur.fetchone()
+        if result and result_1:
+            cur.execute(
+                "INSERT INTO duty(center_id, user_id, job, date, duty_time, assigned_by, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (center_id, user_id, job, date, time, assigned_by, status, created_at, updated_at)
+            )
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'duty added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+@app.route('/duty/<int:duty_id>', methods=['GET'])
+def get_duty(duty_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM duty WHERE id=%s", (duty_id,))
+    duty = cur.fetchone()
+    cur.close()
+
+    if duty:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        duty_dict = dict(zip(column_names, duty))
+
+        response = {'code': '200', 'status': 'true', 'data': duty_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'duty not found'}
+        return jsonify(response)
+
+@app.route('/duty')
+def get_all_duty():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM duty")
+    duty = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for clas in duty:
+        clas_dict = dict(zip(column_names, clas))
+        data_with_columns.append(clas_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/del_duty/<int:id>', methods=['DELETE'])
+def delete_duty(id):
+    cur = mysql.connection.cursor()
+    duty = cur.execute("DELETE FROM duty WHERE id= %s", (id,))
+    mysql.connection.commit()
+    if duty:
+        return jsonify({'message': f'result with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'result with id {id} not found'})
+
+@app.route('/upd_duty/<int:duty_id>', methods=['PUT'])
+def update_duty(duty_id):
+    form = DutyForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        job = form.job.data
+        date = form.date.data
+        time = form.time.data
+        assigned_by = form.assigned_by.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM duty WHERE id=%s", (duty_id,))
+        duty = cur.fetchone()
+        if not duty:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'duty not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+            result_1 = cur.fetchone()
+            if result and result_1:
+                cur.execute(
+                    "UPDATE duty SET center_id=%s, user_id=%s, job=%s, date=%s, time=%s, assigned_by=%s, status=%s, updated_at=%s WHERE id=%s",
+                    (center_id, user_id, job, date, time, assigned_by, status, updated_at, duty_id)
+                )
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'duty updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'duty not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Students Apis #..............................................................
+class StudentForm(Form):
+    name = StringField('Name', [validators.InputRequired()])
+    phone = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+    father_name = StringField('Father Name', [validators.InputRequired()])
+    father_phone = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+    email = StringField('Email', [validators.InputRequired(), validators.Email()])
+    address = StringField('Address', [validators.InputRequired()])
+    roll_no = StringField('Roll No', [validators.InputRequired()])
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    batch_id = IntegerField('Batch ID', [validators.InputRequired()])
+    class_id = IntegerField('Class ID', [validators.InputRequired()])
+    status = IntegerField('Status', [validators.InputRequired(),
+                                     validators.AnyOf([0, 1], 'Must be 0 or 1')])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+@app.route('/add_student', methods=['POST'])
+def add_student():
+    form = StudentForm(request.form)
+    if form.validate():
+        image = request.files['image']
+        name = form.name.data
+        phone = form.phone.data
+        father_name = form.father_name.data
+        father_phone = form.father_phone.data
+        email = form.email.data
+        address = form.address.data
+        bform = request.files['bform']        
+        roll_no = form.roll_no.data
+        center_id = form.center_id.data
+        batch_id = form.batch_id.data
+        class_id = form.class_id.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+
+        filename=image.filename
+        filename1=bform.filename
+        if filename != '' and filename1 != '':
+            file_ext = os.path.splitext(filename)[1]
+            file_ext1 = os.path.splitext(filename1)[1]
+            if (file_ext and file_ext1) not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'this file extension is not allowed'}
+                return jsonify(response)
+        image.save(f'uploads/image and bform/{image.filename}')
+        bform.save(f'uploads/image and bform/{bform.filename}')
+
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        cur.execute("SELECT * FROM batch WHERE id = %s", (batch_id,))
+        result_1 = cur.fetchone()
+        cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
+        result_2 = cur.fetchone()  # Fetch a single row
+        if result and result_1 and result_2:
+            cur.execute("INSERT INTO student(image, name, phone, father_name, father_phone, email, address, bform, roll_no, center_id, batch_id, class_id, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (str(filename), name, phone, father_name, father_phone, email, address, str(filename1), roll_no, center_id, batch_id, class_id, status, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'Student added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+    
+@app.route('/student/<int:student_id>', methods=['GET'])
+def get_student(student_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM student WHERE id=%s", (student_id,))
+    student = cur.fetchone()
+    cur.close()
+
+    if student:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        student_dict = dict(zip(column_names, student))
+
+        response = {'code': '200', 'status': 'true', 'data': student_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'student not found'}
+        return jsonify(response)
+
+@app.route('/student', methods=['GET'])
+def get_all_student():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM student")
+    students = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for student in students:
+        student_dict = dict(zip(column_names, student))
+        data_with_columns.append(student_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/del_student/<int:id>', methods=['DELETE'])
+def delete_student(id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM student WHERE id=%s", (id,))
+    student = cur.fetchone()
+    if student: 
+        image_path = student[1]
+        bform_path = student[8]
+        # delete the center from the database
+        cur.execute("DELETE FROM student WHERE id= %s", (id,))
+        mysql.connection.commit()
+        # delete the center's logo file
+        os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], image_path))
+        os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], bform_path))
+        return jsonify({'message': f'student with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'student with id {id} not found'})
+
+
+@app.route('/upd_student/<int:student_id>', methods=['PUT'])
+def update_student(student_id):
+    form = StudentForm(request.form)
+    if form.validate():
+        image = request.files['image']
+        name = form.name.data
+        phone = form.phone.data
+        father_name = form.father_name.data
+        father_phone = form.father_phone.data
+        email = form.email.data
+        address = form.address.data
+        bform = request.files['bform']        
+        roll_no = form.roll_no.data
+        center_id = form.center_id.data
+        batch_id = form.batch_id.data
+        class_id = form.class_id.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM student WHERE id=%s", (student_id,))
+        role = cur.fetchone()
+
+        if not role:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'student not found'}
+            return jsonify(final_response)
+        else:
+            image_path = role[1]
+            bform_path = role[8]
+            if image_path and os.path.exists(os.path.join(app.config['UPLOADED_DIRECTORY'], image_path)):
+                os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'],image_path))
+            if bform_path and os.path.exists(os.path.join(app.config['UPLOADED_DIRECTORY'], bform_path)):
+                os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'],bform_path))
+            
+            filename=image.filename
+            filename1=bform.filename
+            if filename != '' and filename1 != '':
+                file_ext = os.path.splitext(filename)[1]
+                file_ext1 = os.path.splitext(filename1)[1]
+            if (file_ext and file_ext1) not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'this file extension is not allowed'}
+                return jsonify(response)
+            image.save(f'uploads/image and bform/{image.filename}')
+            bform.save(f'uploads/image and bform/{bform.filename}')            
+            
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            cur.execute("SELECT * FROM batch WHERE id = %s", (batch_id,))
+            result_1 = cur.fetchone()
+            cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
+            result_2 = cur.fetchone()  # Fetch a single row
+            if result and result_1 and result_2:
+                cur.execute("UPDATE student SET image=%s, name=%s, phone=%s, father_name=%s, father_phone=%s, email=%s, address=%s, bform=%s, roll_no=%s, center_id=%s, batch_id=%s, class_id=%s, status=%s, updated_at=%s WHERE id=%s", (str(filename), name, phone, father_name, father_phone, email, address, str(filename1), roll_no, center_id, batch_id, class_id, status, updated_at, student_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'student updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'student not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Subject Apis #..............................................................
+class SubjectForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    class_id = IntegerField('Class ID', [validators.InputRequired()])
+    user_id = IntegerField('User ID', [validators.InputRequired()])
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+@app.route('/add_subject', methods=['POST'])
+def add_subject():
+    form = SubjectForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        class_id = form.class_id.data
+        user_id = form.user_id.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+        result_1 = cur.fetchone()
+        cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
+        result_2 = cur.fetchone()  # Fetch a single row
+        if result and result_1 and result_2:
+            cur.execute("INSERT INTO subject(center_id, name, class_id, user_id, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s)", (center_id, name, class_id, user_id, status, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'Subject added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+@app.route('/subject/<int:subject_id>', methods=['GET'])
+def get_subject(subject_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM subject WHERE id=%s", (subject_id,))
+    subject = cur.fetchone()
+    cur.close()
+
+    if subject:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        subject_dict = dict(zip(column_names, subject))
+
+        response = {'code': '200', 'status': 'true', 'data': subject_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'user not found'}
+        return jsonify(response)
+
+@app.route('/subject', methods=['GET'])
+def get_all_subject():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM subject")
+    subjects = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for subject in subjects:
+        subject_dict = dict(zip(column_names, subject))
+        data_with_columns.append(subject_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/del_subject/<int:id>', methods=['DELETE'])
+def delete_subject(id):
+    cur = mysql.connection.cursor()
+    user = cur.execute(f"DELETE FROM subject WHERE id={id}")
+    mysql.connection.commit()
+    cur.close()
+    if user > 0:
+        final_response = {'code': '200', 'status': 'true', 'message': 'user found', 'data': user}
+        return jsonify(final_response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'user not found', 'data': user}
+        return jsonify(final_response)
+
+
+@app.route('/upd_subject/<int:subject_id>', methods=['PUT'])
+def update_subject(subject_id):
+    form = SubjectForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        class_id = form.class_id.data
+        user_id = form.user_id.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM subject WHERE id=%s", (subject_id,))
+        role = cur.fetchone()
+
+        if not role:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'role not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+            result_1 = cur.fetchone()
+            cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
+            result_2 = cur.fetchone()  # Fetch a single row
+            if result and result_1 and result_2:
+                cur.execute("UPDATE subject SET center_id=%s, name=%s, class_id=%s, user_id=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, class_id, user_id, status, updated_at, subject_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'subject updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'subject not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Teacher Apis #..............................................................
 
 
 if __name__ == "__main__":

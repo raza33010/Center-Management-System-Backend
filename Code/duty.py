@@ -42,39 +42,48 @@ class DutyForm(Form):
 
 mysql = MySQL(app)
 
-@app.route('/add_duty', methods=['POST'])
-def add_duty():
-    form = DutyForm(request.form)
-    if form.validate():
-        center_id = form.center_id.data
-        user_id = form.user_id.data
-        job = form.job.data
-        date = form.date.data
-        time = form.time.data
-        assigned_by = form.assigned_by.data
-        status = form.status.data
-        created_at = form.created_at.data
-        updated_at = form.updated_at.data
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
-        result = cur.fetchone()
-        cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
-        result_1 = cur.fetchone()
-        if result and result_1:
-            cur.execute(
-                "INSERT INTO duty(center_id, user_id, job, date, time, assigned_by, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (center_id, user_id, job, date, time, assigned_by, status, created_at, updated_at)
-            )
-            mysql.connection.commit()
-            cur.close()
-            response = {'code': '200', 'status': 'true', 'message': 'duty added successfully'}
-            return jsonify(response)
-        else:
-            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
-            return jsonify(response)
-    else:
-        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
-        return jsonify(response)
+@app.route('/add_class', methods=['POST'])
+def add_class():
+    form = CenterForm(request.form)
+    if not form.validate():
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{field}: {error}", "error")
+        return jsonify(success=False, errors=form.errors)
+    ...
+# @app.route('/add_duty', methods=['POST'])
+# def add_duty():
+#     form = DutyForm(request.form)
+#     if form.validate():
+#         center_id = form.center_id.data
+#         user_id = form.user_id.data
+#         job = form.job.data
+#         date = form.date.data
+#         time = form.time.data
+#         assigned_by = form.assigned_by.data
+#         status = form.status.data
+#         created_at = form.created_at.data
+#         updated_at = form.updated_at.data
+#         cur = mysql.connection.cursor()
+#         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+#         result = cur.fetchone()
+#         cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+#         result_1 = cur.fetchone()
+#         if result and result_1:
+#             cur.execute(
+#                 "INSERT INTO duty(center_id, user_id, job, date, time, assigned_by, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+#                 (center_id, user_id, job, date, time, assigned_by, status, created_at, updated_at)
+#             )
+#             mysql.connection.commit()
+#             cur.close()
+#             response = {'code': '200', 'status': 'true', 'message': 'duty added successfully'}
+#             return jsonify(response)
+#         else:
+#             response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+#             return jsonify(response)
+#     else:
+#         response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+#         return jsonify(response)
 
 @app.route('/duty/<int:duty_id>', methods=['GET'])
 def get_duty(duty_id):
