@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, flash, jsonify, make_response
 from flask_mysqldb import MySQL
-from wtforms import Form, StringField, IntegerField, validators, DateTimeField, DecimalField, DateField, TimeField
+from wtforms import Form, StringField, IntegerField, validators, DateTimeField, DecimalField, DateField, TimeField, PasswordField
 from datetime import datetime
 from flask_wtf.file import FileField, FileAllowed, FileRequired
 from collections import OrderedDict
@@ -19,19 +19,51 @@ app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 app.config['CORS_ALLOW_ALL_ORIGINS'] = True
 CORS(app)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
-
+# CORS(app, resources={r"/add_users": {"origins": "http://localhost:3000"}})
 mysql = MySQL(app)
+
+# Login Apis #...........................................................   ...
+
+
+@app.route('/login', methods=['POST'])
+def add_users():
+    # form = UserForm(request.form)
+    data = request.get_json()
+  
+    # if form.validate():
+    email = data.get('email')
+    password = data.get('password')
+
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM user WHERE email = %s AND password = %s", (email, password))
+    user = cur.fetchone()
+    cur.close()
+
+    if user:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        user_dict = dict(zip(column_names,user))
+        data = {'code': '200', 'status': 'true', 'data': user_dict}
+        return jsonify(data)
+    else:
+            # Authentication failed
+        return jsonify({'status': 'false', 'message': 'Invalid email or password'}), 401
+
+    # # Handle the case where form validation fails
+    # return jsonify({'status': 'false', 'message': 'Invalid form data'}), 400
 
 # Center Apis #..............................................................
 class CenterForm(Form):
     name = StringField('Name', [validators.InputRequired()])
-    coo = StringField('COO', [validators.InputRequired()])
     status = IntegerField('Status', [
         validators.InputRequired(),
         validators.AnyOf([0, 1], 'Must be 0 or 1')
     ])
     created_at = DateTimeField('Created At', default=datetime.utcnow())
     updated_at = DateTimeField('Updated At', default=datetime.utcnow())
+    phone_no = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+    address = StringField('Address', [validators.InputRequired()])
+
 
 
 
@@ -41,11 +73,11 @@ def add_center():
     if form.validate():
         name = form.name.data
         logo = request.files['logo']
-        coo = form.coo.data
         status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
-
+        address = form.address.data
+        phone_no = form.phone_no.data
         filename=logo.filename
         if filename != '':
             file_ext = os.path.splitext(filename)[1]
@@ -54,7 +86,7 @@ def add_center():
                 return jsonify(response)
         logo.save(f'uploads/{logo.filename}')
         cur = mysql.connection.cursor()
-        cur.execute("INSERT INTO center(name, logo, coo, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (name, str(filename), coo, status, created_at, updated_at))
+        cur.execute("INSERT INTO center(name, logo, status, created_at, updated_at, address, phone_no) VALUES( %s, %s, %s, %s, %s, %s, %s)", (name, str(filename), status, created_at, updated_at, address, phone_no))
         mysql.connection.commit()
         cur.close()
 
@@ -141,11 +173,11 @@ def update_center(center_id):
     form = CenterForm(request.form)
     if form.validate():
         name = form.name.data
-        coo = form.coo.data
         logo = request.files['logo']
         status = form.status.data
         updated_at = form.updated_at.data
-        
+        address = form.address.data
+        phone_no = form.phone_no.data                
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM center WHERE id=%s", (center_id,))
         center = cur.fetchone()
@@ -167,7 +199,7 @@ def update_center(center_id):
             logo.save(f'uploads/{filename}')
 
 
-        cur.execute("UPDATE center SET name=%s, logo=%s, coo=%s, status=%s, updated_at=%s WHERE id=%s", (name, filename, coo, status, updated_at, center_id))
+        cur.execute("UPDATE center SET name=%s, logo=%s, status=%s, updated_at=%s, address=%s, phone_no=%s, WHERE id=%s", (name, filename, status, updated_at, address, phone_no, center_id))
         mysql.connection.commit()
         cur.close()
         
@@ -208,7 +240,7 @@ def add_account():
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()
-        cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+        cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
         result_1 = cur.fetchone()
         if result and result_1:
             cur.execute("INSERT INTO account(center_id, user_id, description, bank_id, amount, transaction_id, transaction_type, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, user_id, description, bank_id, amount, transaction_id, transaction_type, status, created_at, updated_at))
@@ -301,7 +333,7 @@ def update_account(account_id):
         else:
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
-            cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+            cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
             result_1 = cur.fetchone()
             if result and result_1:
                 cur.execute("UPDATE account SET center_id=%s, user_id=%s, description=%s, bank_id=%s, amount=%s, transaction_id=%s, transaction_type=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, user_id, description, bank_id, amount, transaction_id, transaction_type, status, updated_at, account_id))
@@ -324,9 +356,16 @@ class UserForm(Form):
     status = IntegerField('Status', [
         validators.InputRequired(),
         validators.AnyOf([0, 1], 'Must be 0 or 1')
-    ])
+    ], default=1)
     created_at = DateTimeField('Created At', default=datetime.utcnow)
     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+    email = StringField('Email', [validators.InputRequired(), validators.Email()])
+    password = PasswordField('Password', [
+        validators.InputRequired(),
+        validators.Length(min=8, message='Password must be at least 8 characters long')
+    ])
+    phone_no = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+
 
 @app.route('/add_user', methods=['POST'])
 def add_user():
@@ -338,12 +377,15 @@ def add_user():
         status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
+        email = form.email.data
+        password = form.password.data        
+        phone_no = form.phone_no.data
         cur = mysql.connection.cursor()
         cur.execute(f"SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()  # Fetch a single row
 
         if result:
-            cur.execute("INSERT INTO c_user(center_id, name, role, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, name, role, status, created_at, updated_at))
+            cur.execute("INSERT INTO user(center_id, name, role, status, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role, status, created_at, updated_at, email, password, phone_no))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'user added successfully'}
@@ -359,7 +401,7 @@ def add_user():
 @app.route('/user/<int:user_id>', methods=['GET'])
 def get_user(user_id):
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM c_user WHERE id=%s", (user_id,))
+    cur.execute("SELECT * FROM user WHERE id=%s", (user_id,))
     user = cur.fetchone()
     cur.close()
 
@@ -374,10 +416,12 @@ def get_user(user_id):
         response = {'code': '400', 'status': 'false', 'message': 'user not found'}
         return jsonify(response)
 
-@app.route('/user', methods=['GET'])
+@app.route('/user', methods=['POST'])
 def get_all_users():
+    data = request.get_json()
+    center_id = data.get('center_id')
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM c_user")
+    cur.execute("SELECT * FROM user WHERE center_id = %s", (center_id,))
     users = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -397,7 +441,7 @@ def get_all_users():
 @app.route('/del_user/<int:id>', methods=['DELETE'])
 def delete_user(id):
     cur = mysql.connection.cursor()
-    user = cur.execute("DELETE FROM c_user WHERE id= %s", (id,))
+    user = cur.execute("DELETE FROM user WHERE id= %s", (id,))
     mysql.connection.commit()
 
     if user:
@@ -415,8 +459,11 @@ def update_user(user_id):
         role = form.role.data
         status = form.status.data
         updated_at = form.updated_at.data
+        email = form.email.data
+        password = form.password.data
+        phone_no = form.phone_no.data
         cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM c_user WHERE id=%s", (user_id,))
+        cur.execute("SELECT * FROM user WHERE id=%s", (user_id,))
         user = cur.fetchone()
 
         if not user:
@@ -427,13 +474,149 @@ def update_user(user_id):
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
             if result:
-                cur.execute("UPDATE c_user SET center_id=%s, name=%s, role=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, role, status, updated_at, user_id))
+                cur.execute("UPDATE user SET center_id=%s, name=%s, role=%s, status=%s, updated_at=%s, email=%s, password=%s , phone_no=%sWHERE id=%s", (center_id, name, role, status, updated_at, email, password, phone_no, user_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'user updated successfully'}
                 return jsonify(response)
             else:
                 response = {'code': '400', 'status': 'false', 'message': 'user not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Coo Apis #..............................................................
+class COOForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    role = StringField('Role', [validators.InputRequired()])
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ], default=1)
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+    email = StringField('Email', [validators.InputRequired(), validators.Email()])
+    password = PasswordField('Password', [
+        validators.InputRequired(),
+        validators.Length(min=8, message='Password must be at least 8 characters long')
+    ])
+    phone_no = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+
+
+@app.route('/add_coo', methods=['POST'])
+def add_coo():
+    form = COOForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        role = form.role.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        email = form.email.data
+        password = form.password.data        
+        phone_no = form.phone_no.data
+        cur = mysql.connection.cursor()
+        cur.execute(f"SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()  # Fetch a single row
+
+        if result:
+            cur.execute("INSERT INTO coo(center_id, name, role, status, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role, status, created_at, updated_at, email, password, phone_no))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'coo added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'coo addition failed'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+    
+@app.route('/coo/<int:coo_id>', methods=['GET'])
+def get_coo(coo_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM coo WHERE id=%s", (coo_id,))
+    coo = cur.fetchone()
+    cur.close()
+
+    if coo:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        coo_dict = dict(zip(column_names, coo))
+
+        response = {'code': '200', 'status': 'true', 'data': coo_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'coo not found'}
+        return jsonify(response)
+
+@app.route('/coo', methods=['GET'])
+def get_all_coos():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM coo")
+    coos = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for coo in coos:
+        coo_dict = dict(zip(column_names, coo))
+        data_with_columns.append(coo_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/del_coo/<int:id>', methods=['DELETE'])
+def delete_coo(id):
+    cur = mysql.connection.cursor()
+    coo = cur.execute("DELETE FROM coo WHERE id= %s", (id,))
+    mysql.connection.commit()
+
+    if coo:
+        return jsonify({'message': f'result with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'result with id {id} not found'})
+
+
+@app.route('/upd_coo/<int:coo_id>', methods=['PUT'])
+def update_coo(coo_id):
+    form = COOForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        role = form.role.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        email = form.email.data
+        password = form.password.data
+        phone_no = form.phone_no.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM coo WHERE id=%s", (coo_id,))
+        coo = cur.fetchone()
+
+        if not coo:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'coo not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            if result:
+                cur.execute("UPDATE coo SET center_id=%s, name=%s, role=%s, status=%s, updated_at=%s, email=%s, password=%s , phone_no=%sWHERE id=%s", (center_id, name, role, status, updated_at, email, password, phone_no, coo_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'coo updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'coo not updated successfully'}
                 return jsonify(response)
     else:
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
@@ -495,7 +678,7 @@ def get_batch(batch_id):
         response = {'code': '200', 'status': 'true', 'data': batch_dict}
         return jsonify(response)
     else:
-        response = {'code': '400', 'status': 'false', 'message': 'user not found'}
+        response = {'code': '400', 'status': 'false', 'message': 'batch not found'}
         return jsonify(response)
 
 @app.route('/batch', methods=['GET'])
@@ -722,7 +905,7 @@ def add_duty():
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()
-        cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+        cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
         result_1 = cur.fetchone()
         if result and result_1:
             cur.execute(
@@ -810,7 +993,7 @@ def update_duty(duty_id):
         else:
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
-            cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+            cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
             result_1 = cur.fetchone()
             if result and result_1:
                 cur.execute(
@@ -1047,7 +1230,7 @@ def add_subject():
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()
-        cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+        cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
         result_1 = cur.fetchone()
         cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
         result_2 = cur.fetchone()  # Fetch a single row
@@ -1137,7 +1320,7 @@ def update_subject(subject_id):
         else:
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
-            cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+            cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
             result_1 = cur.fetchone()
             cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
             result_2 = cur.fetchone()  # Fetch a single row
@@ -1180,7 +1363,7 @@ def add_teacher():
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()
-        cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+        cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
         result_1 = cur.fetchone()
         cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
         result_2 = cur.fetchone()  # Fetch a single row
@@ -1274,7 +1457,7 @@ def update_teacher(teacher_id):
         else:
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
-            cur.execute("SELECT * FROM c_user WHERE id = %s", (user_id,))
+            cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
             result_1 = cur.fetchone()
             cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
             result_2 = cur.fetchone()  # Fetch a single row
@@ -1829,6 +2012,287 @@ def update_rscreen(rscreen_id):
     else:
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
+
+# Examination Apis #..............................................................
+class ExaminationForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    subject_id = IntegerField('Subject ID', [validators.InputRequired()])
+    type = StringField('Paper Type')
+    month = StringField('Month', [validators.InputRequired()])
+    date = DateField('Date')
+    total_marks = IntegerField('Total Marks')
+    invigilator = StringField('Invigilator')
+    schedule_start_time = StringField('Schedule Start Time')
+    schedule_end_time = StringField('Schedule End Time')
+    start_time = StringField('Start Time')
+    end_time = StringField('End Time')
+    checking_status = StringField('Checking Status')
+    status = IntegerField('Status', [validators.InputRequired(),
+                                     validators.AnyOf([0, 1], 'Must be 0 or 1')])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+@app.route('/add_examination', methods=['POST'])
+def add_exmaination():
+    form = ExaminationForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        subject_id = form.subject_id.data
+        type = form.type.data
+        month = form.month.data
+        date = form.date.data
+        total_marks = form.total_marks.data
+        invigilator = form.invigilator.data
+        schedule_start_time = form.schedule_start_time.data
+        schedule_end_time = form.schedule_end_time.data
+        start_time = form.start_time.data
+        end_time = form.end_time.data
+        checking_status = form.checking_status.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
+        result_1 = cur.fetchone()
+        if result and result_1:
+            cur.execute("INSERT INTO examination(center_id, name, subject_id, type, month, date, total_marks, invigilator, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, subject_id, type, month, date, total_marks, invigilator, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'examination added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+    
+@app.route('/examination/<int:examination_id>', methods=['GET'])
+def get_examination(examination_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM examination WHERE id=%s", (examination_id,))
+    Exam = cur.fetchone()
+    cur.close()
+
+    if Exam:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        Exam_dict = dict(zip(column_names, Exam))
+
+        response = {'code': '200', 'status': 'true', 'data': Exam_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'examination not found'}
+        return jsonify(response)
+
+@app.route('/examination', methods=['GET'])
+def get_all_examination():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM examination")
+    examinations = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for examination in examinations:
+        account_dict = dict(zip(column_names, examination))
+        data_with_columns.append(account_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/del_examination/<int:id>', methods=['DELETE'])
+def delete_examination(id):
+    cur = mysql.connection.cursor()
+    cur.execute("DELETE FROM examination WHERE id= %s", (id,))
+    student = cur.fetchone()
+    mysql.connection.commit()
+    cur.close()
+    if student:
+        return jsonify({'message': f'examination with id {id} not found'})
+    else:
+        return jsonify({'message': f'examination with id {id} deleted successfully'})
+
+
+@app.route('/upd_examination/<int:examination_id>', methods=['PUT'])
+def update_examination(examination_id):
+    form = ExaminationForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        subject_id = form.subject_id.data
+        type = form.type.data
+        month = form.month.data
+        date = form.date.data
+        total_marks = form.total_marks.data
+        invigilator = form.invigilator.data
+        schedule_start_time = form.schedule_start_time.data
+        schedule_end_time = form.schedule_end_time.data
+        start_time = form.start_time.data
+        end_time = form.end_time.data
+        checking_status = form.checking_status.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM examination WHERE id=%s", (examination_id,))
+        role = cur.fetchone()
+
+        if not role:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'examination not found'}
+            return jsonify(final_response)
+        else:    
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
+            result_1 = cur.fetchone()
+            if result and result_1:
+                cur.execute("UPDATE examination SET center_id=%s, name=%s, subject_id=%s, type=%s, month=%s, date=%s, total_marks=%s, invigilator=%s, schedule_start_time=%s, schedule_end_time=%s, start_time=%s, end_time=%s, checking_status=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, subject_id, type, month, date, total_marks, invigilator, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, updated_at, examination_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'examination updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'examination not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Course Chapter Apis #..............................................................
+class CchapterForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    subject_id = IntegerField('subject_id', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+@app.route('/add_cchapter', methods=['POST'])
+def add_cchapter():
+    form = CchapterForm(request.form)
+    if form.validate():       
+        center_id = form.center_id.data
+        subject_id = form.subject_id.data
+        name = form.name.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
+        result_1 = cur.fetchone()
+        if result and result_1:
+            cur.execute("INSERT INTO cchapter(center_id, subject_id, name, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, subject_id, name, status, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'cchapter added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+    
+@app.route('/cchapter/<int:cchapter_id>', methods=['GET'])
+def get_cchapter(cchapter_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM cchapter WHERE id=%s", (cchapter_id,))
+    Cchapter = cur.fetchone()
+    cur.close()
+
+    if Cchapter:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        Cchapter_dict = dict(zip(column_names, Cchapter))
+
+        response = {'code': '200', 'status': 'true', 'data': Cchapter_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'cchapter not found'}
+        return jsonify(response)
+
+@app.route('/cchapter', methods=['GET'])
+def get_all_cchapter():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM cchapter")
+    Cchapters = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Cchapter in Cchapters:
+        cchapter_dict = dict(zip(column_names, Cchapter))
+        data_with_columns.append(cchapter_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/del_cchapter/<int:id>', methods=['DELETE'])
+def delete_cchapter(id):
+    cur = mysql.connection.cursor()
+    cchapter = cur.execute("DELETE FROM cchapter WHERE id= %s", (id,))
+    mysql.connection.commit()
+
+    if cchapter:
+        return jsonify({'message': f'result with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'result with id {id} not found'})
+
+
+@app.route('/upd_cchapter/<int:cchapter_id>', methods=['PUT'])
+def update_cchapter(cchapter_id):
+    form = CchapterForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        subject_id = form.subject_id.data
+        name = form.name.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM cchapter WHERE id=%s", (cchapter_id,))
+        cchapter = cur.fetchone()
+
+        if not cchapter:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'cchapter not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
+            result_1 = cur.fetchone()
+            if result and result_1:
+                cur.execute("UPDATE cchapter SET center_id=%s, subject_id=%s, name=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, subject_id, name, status, updated_at, cchapter_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'cchapter updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'cchapter not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
 
 
 if __name__ == "__main__":
