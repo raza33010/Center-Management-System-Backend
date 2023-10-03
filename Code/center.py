@@ -22,6 +22,27 @@ CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 # CORS(app, resources={r"/add_users": {"origins": "http://localhost:3000"}})
 mysql = MySQL(app)
 
+@app.route('/dropdown_center_id', methods=['GET'])
+def get_all_cenyter_id():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id FROM user")
+    users = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for user in users:
+        user_dict = dict(zip(column_names, user))
+        data_with_columns.append(user_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
 # Login Apis #...........................................................   ...
 
 
@@ -37,9 +58,17 @@ def add_users():
     cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM user WHERE email = %s AND password = %s", (email, password))
     user = cur.fetchone()
+    cur.execute("SELECT * FROM coo WHERE email = %s AND password = %s", (email, password))
+    coo = cur.fetchone()
     cur.close()
+    print(user)
+    if user == None:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
 
-    if user:
+        user_dict = dict(zip(column_names,coo))
+        data = {'code': '200', 'status': 'true', 'data': user_dict}
+        return jsonify(data)
+    elif coo ==None:
         column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
 
         user_dict = dict(zip(column_names,user))
@@ -420,8 +449,12 @@ def get_user(user_id):
 def get_all_users():
     data = request.get_json()
     center_id = data.get('center_id')
+    role = data.get('role')
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM user WHERE center_id = %s", (center_id,))
+    if role == 'Super Admin':
+        cur.execute("SELECT * FROM user")
+    else:
+        cur.execute("SELECT * FROM user WHERE center_id = %s", (center_id,))
     users = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
