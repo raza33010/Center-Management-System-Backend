@@ -58,17 +58,9 @@ def add_users():
     cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM user WHERE email = %s AND password = %s", (email, password))
     user = cur.fetchone()
-    cur.execute("SELECT * FROM coo WHERE email = %s AND password = %s", (email, password))
-    coo = cur.fetchone()
     cur.close()
     print(user)
-    if user == None:
-        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
-
-        user_dict = dict(zip(column_names,coo))
-        data = {'code': '200', 'status': 'true', 'data': user_dict}
-        return jsonify(data)
-    elif coo ==None:
+    if user:
         column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
 
         user_dict = dict(zip(column_names,user))
@@ -142,6 +134,28 @@ def get_center(center_id):
     else:
         response = {'code': '400', 'status': 'false', 'message': 'Center not found'}
         return jsonify(response)
+
+@app.route('/center_id', methods=['GET'])
+def get_all_centers_id():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM center")
+    centers = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for center in centers:
+        center_dict = dict(zip(column_names, center))
+        data_with_columns.append(center_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
 
 @app.route('/center', methods=['GET'])
 def get_all_centers():
@@ -452,7 +466,8 @@ def get_all_users():
     role = data.get('role')
     cur = mysql.connection.cursor()
     if role == 'Super Admin':
-        cur.execute("SELECT * FROM user")
+        cur.execute("SELECT * FROM user WHERE role NOT IN ('Super Admin', 'COO')")
+
     else:
         cur.execute("SELECT * FROM user WHERE center_id = %s", (center_id,))
     users = cur.fetchall()
@@ -556,7 +571,7 @@ def add_coo():
         result = cur.fetchone()  # Fetch a single row
 
         if result:
-            cur.execute("INSERT INTO coo(center_id, name, role, status, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role, status, created_at, updated_at, email, password, phone_no))
+            cur.execute("INSERT INTO user(center_id, name, role, status, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role, status, created_at, updated_at, email, password, phone_no))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'coo added successfully'}
@@ -572,7 +587,7 @@ def add_coo():
 @app.route('/coo/<int:coo_id>', methods=['GET'])
 def get_coo(coo_id):
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM coo WHERE id=%s", (coo_id,))
+    cur.execute("SELECT * FROM user WHERE id=%s", (coo_id,))
     coo = cur.fetchone()
     cur.close()
 
@@ -590,7 +605,7 @@ def get_coo(coo_id):
 @app.route('/coo', methods=['GET'])
 def get_all_coos():
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM coo")
+    cur.execute("SELECT * FROM user WHERE role = 'COO'")
     coos = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -632,7 +647,7 @@ def update_coo(coo_id):
         password = form.password.data
         phone_no = form.phone_no.data
         cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM coo WHERE id=%s", (coo_id,))
+        cur.execute("SELECT * FROM user WHERE id=%s", (coo_id,))
         coo = cur.fetchone()
 
         if not coo:
@@ -643,7 +658,7 @@ def update_coo(coo_id):
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
             if result:
-                cur.execute("UPDATE coo SET center_id=%s, name=%s, role=%s, status=%s, updated_at=%s, email=%s, password=%s , phone_no=%sWHERE id=%s", (center_id, name, role, status, updated_at, email, password, phone_no, coo_id))
+                cur.execute("UPDATE user SET center_id=%s, name=%s, role=%s, status=%s, updated_at=%s, email=%s, password=%s , phone_no=%sWHERE id=%s", (center_id, name, role, status, updated_at, email, password, phone_no, coo_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'coo updated successfully'}
