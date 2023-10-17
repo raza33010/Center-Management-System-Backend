@@ -396,10 +396,10 @@ class UserForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     name = StringField('Name', [validators.InputRequired()])
     role = StringField('Role', [validators.InputRequired()])
-    status = IntegerField('Status', [
-        validators.InputRequired(),
-        validators.AnyOf([0, 1], 'Must be 0 or 1')
-    ], default=1)
+    # status = IntegerField('Status', [
+    #     validators.InputRequired(),
+    #     validators.AnyOf([0, 1], 'Must be 0 or 1')
+    # ], default=1)
     created_at = DateTimeField('Created At', default=datetime.utcnow)
     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
     email = StringField('Email', [validators.InputRequired(), validators.Email()])
@@ -417,7 +417,6 @@ def add_user():
         center_id = form.center_id.data
         name = form.name.data
         role = form.role.data
-        status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
         email = form.email.data
@@ -428,7 +427,7 @@ def add_user():
         result = cur.fetchone()  # Fetch a single row
 
         if result:
-            cur.execute("INSERT INTO user(center_id, name, role, status, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role, status, created_at, updated_at, email, password, phone_no))
+            cur.execute("INSERT INTO user(center_id, name, role, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role, created_at, updated_at, email, password, phone_no))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'user added successfully'}
@@ -533,143 +532,8 @@ def update_user(user_id):
     else:
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
-
-# Coo Apis #..............................................................
-class COOForm(Form):
-    center_id = IntegerField('Center ID', [validators.InputRequired()])
-    name = StringField('Name', [validators.InputRequired()])
-    role = StringField('Role', [validators.InputRequired()])
-    status = IntegerField('Status', [
-        validators.InputRequired(),
-        validators.AnyOf([0, 1], 'Must be 0 or 1')
-    ], default=1)
-    created_at = DateTimeField('Created At', default=datetime.utcnow)
-    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
-    email = StringField('Email', [validators.InputRequired(), validators.Email()])
-    password = PasswordField('Password', [
-        validators.InputRequired(),
-        validators.Length(min=8, message='Password must be at least 8 characters long')
-    ])
-    phone_no = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
-
-
-@app.route('/add_coo', methods=['POST'])
-def add_coo():
-    form = COOForm(request.form)
-    if form.validate():
-        center_id = form.center_id.data
-        name = form.name.data
-        role = form.role.data
-        status = form.status.data
-        created_at = form.created_at.data
-        updated_at = form.updated_at.data
-        email = form.email.data
-        password = form.password.data        
-        phone_no = form.phone_no.data
-        cur = mysql.connection.cursor()
-        cur.execute(f"SELECT * FROM center WHERE id = %s", (center_id,))
-        result = cur.fetchone()  # Fetch a single row
-
-        if result:
-            cur.execute("INSERT INTO user(center_id, name, role, status, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role, status, created_at, updated_at, email, password, phone_no))
-            mysql.connection.commit()
-            cur.close()
-            response = {'code': '200', 'status': 'true', 'message': 'coo added successfully'}
-            return jsonify(response)
-        else:
-            response = {'code': '400', 'status': 'false', 'message': 'coo addition failed'}
-            return jsonify(response)
-    else:
-        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
-        return jsonify(response)
-
     
-@app.route('/coo/<int:coo_id>', methods=['GET'])
-def get_coo(coo_id):
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM user WHERE id=%s", (coo_id,))
-    coo = cur.fetchone()
-    cur.close()
-
-    if coo:
-        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
-
-        coo_dict = dict(zip(column_names, coo))
-
-        response = {'code': '200', 'status': 'true', 'data': coo_dict}
-        return jsonify(response)
-    else:
-        response = {'code': '400', 'status': 'false', 'message': 'coo not found'}
-        return jsonify(response)
-
-@app.route('/coo', methods=['GET'])
-def get_all_coos():
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM user WHERE role = 'COO'")
-    coos = cur.fetchall()
-    column_names = [desc[0] for desc in cur.description]
-    cur.close()
-    data_with_columns = []
-    for coo in coos:
-        coo_dict = dict(zip(column_names, coo))
-        data_with_columns.append(coo_dict)
-
-    response = {
-        "code": "200",
-        "data": data_with_columns,
-        "status": "true"
-    }
-
-    return jsonify(response)
-
-@app.route('/del_coo/<int:id>', methods=['DELETE'])
-def delete_coo(id):
-    cur = mysql.connection.cursor()
-    coo = cur.execute("DELETE FROM coo WHERE id= %s", (id,))
-    mysql.connection.commit()
-
-    if coo:
-        return jsonify({'message': f'result with id {id} deleted successfully'})
-    else:
-        return jsonify({'message': f'result with id {id} not found'})
-
-
-@app.route('/upd_coo/<int:coo_id>', methods=['PUT'])
-def update_coo(coo_id):
-    form = COOForm(request.form)
-    if form.validate():
-        center_id = form.center_id.data
-        name = form.name.data
-        role = form.role.data
-        status = form.status.data
-        updated_at = form.updated_at.data
-        email = form.email.data
-        password = form.password.data
-        phone_no = form.phone_no.data
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM user WHERE id=%s", (coo_id,))
-        coo = cur.fetchone()
-
-        if not coo:
-            cur.close()
-            final_response = {'code': '404', 'status': 'false', 'message': 'coo not found'}
-            return jsonify(final_response)
-        else:
-            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
-            result = cur.fetchone()
-            if result:
-                cur.execute("UPDATE user SET center_id=%s, name=%s, role=%s, status=%s, updated_at=%s, email=%s, password=%s , phone_no=%sWHERE id=%s", (center_id, name, role, status, updated_at, email, password, phone_no, coo_id))
-                mysql.connection.commit()
-                cur.close()
-                response = {'code': '200', 'status': 'true', 'message': 'coo updated successfully'}
-                return jsonify(response)
-            else:
-                response = {'code': '400', 'status': 'false', 'message': 'coo not updated successfully'}
-                return jsonify(response)
-    else:
-        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
-        return jsonify(final_response)
-
+    
 # Batch Apis #..............................................................
 class BatchForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
