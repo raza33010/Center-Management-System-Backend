@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, flash, jsonify, make_response
 from flask_mysqldb import MySQL
-from wtforms import Form, StringField, IntegerField, validators, DateTimeField, DecimalField, DateField, TimeField, PasswordField
+from wtforms import Form, StringField, IntegerField, validators, DateTimeField, DecimalField, DateField, TimeField, PasswordField, SelectMultipleField
 from datetime import datetime
 from flask_wtf.file import FileField, FileAllowed, FileRequired
 from collections import OrderedDict
@@ -395,7 +395,8 @@ def update_account(account_id):
 class UserForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     name = StringField('Name', [validators.InputRequired()])
-    role = StringField('Role', [validators.InputRequired()])
+    role_id = StringField('Name', [validators.InputRequired()])
+
     # status = IntegerField('Status', [
     #     validators.InputRequired(),
     #     validators.AnyOf([0, 1], 'Must be 0 or 1')
@@ -416,7 +417,7 @@ def add_user():
     if form.validate():
         center_id = form.center_id.data
         name = form.name.data
-        role = form.role.data
+        role_id = form.role_id.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
         email = form.email.data
@@ -427,7 +428,7 @@ def add_user():
         result = cur.fetchone()  # Fetch a single row
 
         if result:
-            cur.execute("INSERT INTO user(center_id, name, role, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role, created_at, updated_at, email, password, phone_no))
+            cur.execute("INSERT INTO user(center_id, name, role_id, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role_id, created_at, updated_at, email, password, phone_no))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'user added successfully'}
