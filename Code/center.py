@@ -463,13 +463,26 @@ def get_user(user_id):
 def get_all_users():
     data = request.get_json()
     center_id = data.get('center_id')
-    role = data.get('role')
+    role_id = data.get('role_id')
+    print(role_id)
     cur = mysql.connection.cursor()
-    if role == 'Super Admin':
-        cur.execute("SELECT * FROM user WHERE role NOT IN ('Super Admin', 'COO')")
-
+    cur.execute("SELECT name FROM u_role WHERE id = %s",(role_id))
+    role = cur.fetchone()
+    print(role)
+    if role == ('Super Admin',):
+        cur.execute("SELECT id FROM u_role WHERE name = %s",role)
+        SA = cur.fetchone()
+        cur.execute("SELECT id FROM u_role WHERE name = %s",('COO',))
+        AD = cur.fetchone()
+        print(SA)
+        print(AD)
+        cur.execute("SELECT * FROM user WHERE role_id NOT IN (%s, %s)",(SA,AD))
+    elif role == ('COO',):
+        cur.execute("SELECT * FROM user WHERE role_id = %s",(role_id))
+        
     else:
         cur.execute("SELECT * FROM user WHERE center_id = %s", (center_id,))
+        print(cur.execute("SELECT * FROM user WHERE center_id = %s", (center_id,)))
     users = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -1586,6 +1599,26 @@ def get_role(role_id):
 def get_all_roles():
     cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM u_role")
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/role_id', methods=['GET'])
+def get_all_roles_id():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id,name FROM u_role")
     Uroles = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
