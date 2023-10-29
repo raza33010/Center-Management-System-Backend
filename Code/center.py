@@ -410,6 +410,24 @@ class UserForm(Form):
     ])
     phone_no = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
 
+class UPDUserForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    role_id = StringField('Name', [validators.InputRequired()])
+
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ], default=1)
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+    email = StringField('Email', [validators.InputRequired(), validators.Email()])
+    password = PasswordField('Password', [
+        validators.InputRequired(),
+        validators.Length(min=8, message='Password must be at least 8 characters long')
+    ])
+    phone_no = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+
 
 @app.route('/add_user', methods=['POST'])
 def add_user():
@@ -423,6 +441,8 @@ def add_user():
         email = form.email.data
         password = form.password.data        
         phone_no = form.phone_no.data
+
+        
         cur = mysql.connection.cursor()
         cur.execute(f"SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()  # Fetch a single row
@@ -443,9 +463,13 @@ def add_user():
     
 @app.route('/user/<int:user_id>', methods=['GET'])
 def get_user(user_id):
+    # print(user_id)
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM user WHERE id=%s", (user_id,))
+    sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({user_id}) GROUP BY u.id"
+    cur.execute(sql)    
     user = cur.fetchone()
+    list(user)
+    # print(user[-1])
     cur.close()
 
     if user:
@@ -464,31 +488,59 @@ def get_all_users():
     data = request.get_json()
     center_id = data.get('center_id')
     role_id = data.get('role_id')
+    role = data.get('role')
     print(role_id)
     cur = mysql.connection.cursor()
-    cur.execute("SELECT name FROM u_role WHERE id = %s",(role_id))
-    role = cur.fetchone()
     print(role)
-    if role == ('Super Admin',):
-        cur.execute("SELECT id FROM u_role WHERE name = %s",role)
-        SA = cur.fetchone()
-        cur.execute("SELECT id FROM u_role WHERE name = %s",('COO',))
-        AD = cur.fetchone()
-        print(SA)
-        print(AD)
-        cur.execute("SELECT * FROM user WHERE role_id NOT IN (%s, %s)",(SA,AD))
-    elif role == ('COO',):
-        cur.execute("SELECT * FROM user WHERE role_id = %s",(role_id))
+
+    cur.execute("SELECT id, role_id FROM user WHERE id <> 1")
+    role1 = list(cur.fetchall())
+    print(role1)
+    abbas = []
+    abbas2 = []
+    
+    # Split role_ids and create a list
+    role_id_list = role_id.split(',')
+    
+    for i in range(len(role1)):
+        abbas1 = role1[i]
+        # all(role_id in abbas1[-1].split(',') for role_id in role_id_list)
+        if '2' in abbas1[-1]:
+            abbas.append(abbas1[0])
+        else:
+            abbas2.append(abbas1[0])
+    print(abbas)
+    print(abbas2)
+
+    placeholders_1 = ', '.join(['%s'] * len(abbas))
+    placeholders_2 = ', '.join(['%s'] * len(abbas2))
+    if role_id == '0':
+        if role == "coo":
+            sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_1}) GROUP BY u.id"
+            cur.execute(sql)
+        elif role == 'user':
+            sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_2}) GROUP BY u.id"
+            cur.execute(sql, abbas2)
+    elif role_id == '2':
+        if role == "coo":
+            sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_1}) GROUP BY u.id"
+            cur.execute(sql, abbas)
+        elif role == 'user':
+            sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_2}) AND u.center_id = {center_id} GROUP BY u.id"
+            cur.execute(sql, abbas2)
         
-    else:
-        cur.execute("SELECT * FROM user WHERE center_id = %s", (center_id,))
-        print(cur.execute("SELECT * FROM user WHERE center_id = %s", (center_id,)))
+        
     users = cur.fetchall()
+    print(users)
+    
     column_names = [desc[0] for desc in cur.description]
     cur.close()
+
     data_with_columns = []
     for user in users:
         user_dict = dict(zip(column_names, user))
+        # Split the role_names into a list
+        user_dict['role_names'] = user_dict['role_names'].split(',')
         data_with_columns.append(user_dict)
 
     response = {
@@ -498,6 +550,7 @@ def get_all_users():
     }
 
     return jsonify(response)
+
 
 @app.route('/del_user/<int:id>', methods=['DELETE'])
 def delete_user(id):
@@ -511,13 +564,28 @@ def delete_user(id):
         return jsonify({'message': f'result with id {id} not found'})
 
 
+
+# @app.route('/upd_user/<int:user_id>', methods=['PUT'])
+# def update_user(user_id):
+#     form = UPDUserForm(request.form)
+#     if not form.validate():
+#         for field, errors in form.errors.items():
+#             for error in errors:
+#                 flash(f"{field}: {error}", "error")
+#         return jsonify(success=False, errors=form.errors)
+#     else:
+#         return jsonify('abbas')
+#     ...
 @app.route('/upd_user/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
-    form = UserForm(request.form)
+    print(user_id)
+    form = UPDUserForm(request.form)
+    center_id = form.center_id.data
+    print(form)
     if form.validate():
         center_id = form.center_id.data
         name = form.name.data
-        role = form.role.data
+        role_id = form.role_id.data
         status = form.status.data
         updated_at = form.updated_at.data
         email = form.email.data
@@ -535,7 +603,7 @@ def update_user(user_id):
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
             if result:
-                cur.execute("UPDATE user SET center_id=%s, name=%s, role=%s, status=%s, updated_at=%s, email=%s, password=%s , phone_no=%sWHERE id=%s", (center_id, name, role, status, updated_at, email, password, phone_no, user_id))
+                cur.execute("UPDATE user SET center_id=%s, name=%s, role_id=%s, status=%s, updated_at=%s, email=%s, password=%s , phone_no=%sWHERE id=%s", (center_id, name, role_id, status, updated_at, email, password, phone_no, user_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'user updated successfully'}
@@ -1618,7 +1686,27 @@ def get_all_roles():
 @app.route('/role_id', methods=['GET'])
 def get_all_roles_id():
     cur = mysql.connection.cursor()
-    cur.execute("SELECT id,name FROM u_role")
+    cur.execute("SELECT id,name FROM u_role WHERE id <> 0")
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/role_ids', methods=['GET'])
+def get_all_roles_ids():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM u_role WHERE id NOT IN (0, 2)")
     Uroles = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
