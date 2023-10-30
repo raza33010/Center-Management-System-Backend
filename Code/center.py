@@ -499,9 +499,6 @@ def get_all_users():
     abbas = []
     abbas2 = []
     
-    # Split role_ids and create a list
-    role_id_list = role_id.split(',')
-    
     for i in range(len(role1)):
         abbas1 = role1[i]
         # all(role_id in abbas1[-1].split(',') for role_id in role_id_list)
