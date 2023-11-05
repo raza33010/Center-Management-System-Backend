@@ -483,6 +483,30 @@ def get_user(user_id):
         response = {'code': '400', 'status': 'false', 'message': 'user not found'}
         return jsonify(response)
 
+@app.route('/user_ids', methods=['POST'])
+def get_all_userses():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    print(center_id)
+    cur = mysql.connection.cursor()
+    cur.execute(f"SELECT id, name FROM user WHERE FIND_IN_SET(4, role_id) > 0 AND center_id = {center_id}")
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
 @app.route('/user', methods=['POST'])
 def get_all_users():
     data = request.get_json()
@@ -798,6 +822,26 @@ def get_class(class_id):
     else:
         response = {'code': '400', 'status': 'false', 'message': 'class not found'}
         return jsonify(response)
+
+@app.route('/class_ids', methods=['GET'])
+def get_all_class_ids():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM class")
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
 
 @app.route('/class', methods=['GET'])
 def get_all_class():
@@ -1197,14 +1241,27 @@ def update_student(student_id):
 class SubjectForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     name = StringField('Name', [validators.InputRequired()])
-    class_id = IntegerField('Class ID', [validators.InputRequired()])
-    user_id = IntegerField('User ID', [validators.InputRequired()])
+    class_id = StringField('Class ID', [validators.InputRequired()])
+    user_id = StringField('User ID', [validators.InputRequired()])
+    # status = IntegerField('Status', [
+    #     validators.InputRequired(),
+    #     validators.AnyOf([0, 1], 'Must be 0 or 1')
+    # ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+class USubjectForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    class_id = StringField('Class ID', [validators.InputRequired()])
+    user_id = StringField('User ID', [validators.InputRequired()])
     status = IntegerField('Status', [
         validators.InputRequired(),
         validators.AnyOf([0, 1], 'Must be 0 or 1')
     ])
     created_at = DateTimeField('Created At', default=datetime.utcnow)
     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
 
 @app.route('/add_subject', methods=['POST'])
 def add_subject():
@@ -1214,9 +1271,9 @@ def add_subject():
         name = form.name.data
         class_id = form.class_id.data
         user_id = form.user_id.data
-        status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
+        print(class_id)
 
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
@@ -1226,7 +1283,7 @@ def add_subject():
         cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
         result_2 = cur.fetchone()  # Fetch a single row
         if result and result_1 and result_2:
-            cur.execute("INSERT INTO subject(center_id, name, class_id, user_id, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s)", (center_id, name, class_id, user_id, status, created_at, updated_at))
+            cur.execute("INSERT INTO subject(center_id, name, class_id, user_id, created_at, updated_at) VALUES( %s, %s, %s, %s, %s, %s)", (center_id, name, class_id, user_id, created_at, updated_at))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'Subject added successfully'}
@@ -1241,7 +1298,18 @@ def add_subject():
 @app.route('/subject/<int:subject_id>', methods=['GET'])
 def get_subject(subject_id):
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM subject WHERE id=%s", (subject_id,))
+    cur.execute(f"""
+        SELECT
+    s.*,
+    GROUP_CONCAT(u.name) AS user_names,
+    GROUP_CONCAT(c.name) AS class_names
+FROM subject s
+JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+JOIN class c ON FIND_IN_SET(c.id, s.class_id) > 0
+WHERE s.id = {subject_id}
+GROUP BY s.id ;
+
+    """)
     subject = cur.fetchone()
     cur.close()
 
@@ -1256,17 +1324,34 @@ def get_subject(subject_id):
         response = {'code': '400', 'status': 'false', 'message': 'user not found'}
         return jsonify(response)
 
-@app.route('/subject', methods=['GET'])
+@app.route('/subject', methods=['POST'])
 def get_all_subject():
+    data = request.get_json()
+    center_id = data.get('center_id')
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM subject")
+    cur.execute(f"""
+        SELECT
+    s.*,
+    GROUP_CONCAT(u.name) AS user_names,
+    GROUP_CONCAT(c.name) AS class_names
+FROM subject s
+JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+JOIN class c ON FIND_IN_SET(c.id, s.class_id) > 0
+WHERE s.center_id = {center_id}
+GROUP BY s.id ;
+
+    """)
     subjects = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
     data_with_columns = []
     for subject in subjects:
-        subject_dict = dict(zip(column_names, subject))
-        data_with_columns.append(subject_dict)
+        user_dict = dict(zip(column_names, subject))
+        # Split the role_names into a list
+        user_dict['user_names'] = user_dict['user_names'].split(',')
+        user_dict['class_names'] = user_dict['class_names'].split(',')
+        data_with_columns.append(user_dict)
+
 
     response = {
         "code": "200",
@@ -1292,7 +1377,7 @@ def delete_subject(id):
 
 @app.route('/upd_subject/<int:subject_id>', methods=['PUT'])
 def update_subject(subject_id):
-    form = SubjectForm(request.form)
+    form = USubjectForm(request.form)
     if form.validate():
         center_id = form.center_id.data
         name = form.name.data
