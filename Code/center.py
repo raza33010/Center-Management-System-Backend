@@ -511,44 +511,55 @@ def get_all_userses():
 def get_all_users():
     data = request.get_json()
     center_id = data.get('center_id')
-    role_id = data.get('role_id')
+    role_id = list(data.get('role_id'))
     role = data.get('role')
     print(role_id)
     cur = mysql.connection.cursor()
     print(role)
 
-    cur.execute("SELECT id, role_id FROM user WHERE id <> 1")
+    cur.execute("SELECT id, center_id, role_id FROM user WHERE id <> 1")
     role1 = list(cur.fetchall())
     print(role1)
     abbas = []
     abbas2 = []
-    
+    abbas3 = []    
+    # print(type(abbas1[-2]))
     for i in range(len(role1)):
         abbas1 = role1[i]
         # all(role_id in abbas1[-1].split(',') for role_id in role_id_list)
         if '2' in abbas1[-1]:
             abbas.append(abbas1[0])
+        elif "4" in abbas1[-1]:
+            abbas3.append(abbas1[0])
         else:
             abbas2.append(abbas1[0])
     print(abbas)
     print(abbas2)
+    print(abbas3)
 
     placeholders_1 = ', '.join(['%s'] * len(abbas))
     placeholders_2 = ', '.join(['%s'] * len(abbas2))
-    if role_id == '0':
+    placeholders_3 = ', '.join(['%s'] * len(abbas3))
+    if '0' in role_id:
         if role == "coo":
             sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_1}) GROUP BY u.id"
             cur.execute(sql)
         elif role == 'user':
             sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_2}) GROUP BY u.id"
             cur.execute(sql, abbas2)
-    elif role_id == '2':
+        elif role == 'teacher':
+            sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_3}) GROUP BY u.id"
+            cur.execute(sql, abbas3)    
+    elif '2' in role_id:
         if role == "coo":
             sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_1}) GROUP BY u.id"
             cur.execute(sql, abbas)
         elif role == 'user':
             sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_2}) AND u.center_id = {center_id} GROUP BY u.id"
             cur.execute(sql, abbas2)
+        elif role == 'teacher':
+            sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_3}) AND u.center_id = {center_id} GROUP BY u.id"
+            cur.execute(sql, abbas3)
         
         
     users = cur.fetchall()
@@ -891,6 +902,7 @@ GROUP BY c.id ;
 
     """)
     subjects = cur.fetchall()
+    print(subjects)
     column_names = [desc[0] for desc in cur.description]
     cur.close()
     data_with_columns = []
