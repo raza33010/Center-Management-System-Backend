@@ -533,6 +533,7 @@ def get_all_users():
             abbas3.append(abbas1[0])
         else:
             abbas2.append(abbas1[0])
+    abbas2 += abbas3
     print(abbas)
     print(abbas2)
     print(abbas3)
@@ -1482,144 +1483,146 @@ def update_subject(subject_id):
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
 
-# Teacher Apis #..............................................................
-class TeacherForm(Form):
-    center_id = IntegerField('Center ID', [validators.InputRequired()])
+# # Teacher Apis #..............................................................
+class ExpenseForm(Form):
     user_id = IntegerField('Exam ID', [validators.InputRequired()])
-    subject_id = IntegerField('Student ID', [validators.InputRequired()])
-    class_id = IntegerField('Student ID', [validators.InputRequired()])
+    account_id = IntegerField('Student ID', [validators.InputRequired()])
+    transaction_id = IntegerField('Student ID', [validators.InputRequired()])
+    amount = IntegerField('Student ID', [validators.InputRequired()])
+    description = StringField('Name', [validators.InputRequired()])  
     status = IntegerField('Status', [validators.InputRequired(),
                                      validators.AnyOf([0, 1], 'Must be 0 or 1')])
     created_at = DateTimeField('Created At', default=datetime.utcnow)
     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
 
-@app.route('/add_teacher', methods=['POST'])
-def add_teacher():
-    form = TeacherForm(request.form)
-    if form.validate():       
-        center_id = form.center_id.data
-        user_id = form.user_id.data
-        subject_id = form.subject_id.data
-        class_id = form.class_id.data
-        status = form.status.data
-        created_at = form.created_at.data
-        updated_at = form.updated_at.data
+# @app.route('/add_expense', methods=['POST'])
+# def add_expense():
+#     form = ExpenseForm(request.form)
+#     if form.validate():       
+#         transaction_id = form.transaction_id.data
+#         user_id = form.user_id.data
+#         acconut_id = form.acconut_id.data
+#         description = form.description.data
+#         amount = form.amount.data
+#         status = form.status.data
+#         created_at = form.created_at.data
+#         updated_at = form.updated_at.data
 
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
-        result = cur.fetchone()
-        cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
-        result_1 = cur.fetchone()
-        cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
-        result_2 = cur.fetchone()  # Fetch a single row
-        cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
-        result_3 = cur.fetchone()
-        if result and result_1 and result_2 and result_3:
-            cur.execute("INSERT INTO teacher(center_id, user_id, subject_id, class_id, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s)", (center_id, user_id, subject_id, class_id, status, created_at, updated_at))
-            mysql.connection.commit()
-            cur.close()
-            response = {'code': '200', 'status': 'true', 'message': 'teacher added successfully'}
-            return jsonify(response)
-        else:
-            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
-            return jsonify(response)
-    else:
-        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
-        return jsonify(response)
+#         cur = mysql.connection.cursor()
+#         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+#         result = cur.fetchone()
+#         cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
+#         result_1 = cur.fetchone()
+#         cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
+#         result_2 = cur.fetchone()  # Fetch a single row
+#         cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
+#         result_3 = cur.fetchone()
+#         if result and result_1 and result_2 and result_3:
+#             cur.execute("INSERT INTO teacher(center_id, user_id, subject_id, class_id, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s)", (center_id, user_id, subject_id, class_id, status, created_at, updated_at))
+#             mysql.connection.commit()
+#             cur.close()
+#             response = {'code': '200', 'status': 'true', 'message': 'teacher added successfully'}
+#             return jsonify(response)
+#         else:
+#             response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+#             return jsonify(response)
+#     else:
+#         response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+#         return jsonify(response)
 
 
 
     
-@app.route('/teacher/<int:teacher_id>', methods=['GET'])
-def get_teacher(teacher_id):
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM teacher WHERE id=%s", (teacher_id,))
-    teacher = cur.fetchone()
-    cur.close()
+# @app.route('/teacher/<int:teacher_id>', methods=['GET'])
+# def get_teacher(teacher_id):
+#     cur = mysql.connection.cursor()
+#     cur.execute("SELECT * FROM teacher WHERE id=%s", (teacher_id,))
+#     teacher = cur.fetchone()
+#     cur.close()
 
-    if teacher:
-        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+#     if teacher:
+#         column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
 
-        teacher_dict = dict(zip(column_names, teacher))
+#         teacher_dict = dict(zip(column_names, teacher))
 
-        response = {'code': '200', 'status': 'true', 'data': teacher_dict}
-        return jsonify(response)
-    else:
-        response = {'code': '400', 'status': 'false', 'message': 'teacher not found'}
-        return jsonify(response)
+#         response = {'code': '200', 'status': 'true', 'data': teacher_dict}
+#         return jsonify(response)
+#     else:
+#         response = {'code': '400', 'status': 'false', 'message': 'teacher not found'}
+#         return jsonify(response)
 
-@app.route('/teacher', methods=['GET'])
-def get_all_teacher():
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM teacher")
-    teachers = cur.fetchall()
-    column_names = [desc[0] for desc in cur.description]
-    cur.close()
-    data_with_columns = []
-    for teacher in teachers:
-        teacher_dict = dict(zip(column_names, teacher))
-        data_with_columns.append(teacher_dict)
+# @app.route('/teacher', methods=['GET'])
+# def get_all_teacher():
+#     cur = mysql.connection.cursor()
+#     cur.execute("SELECT * FROM teacher")
+#     teachers = cur.fetchall()
+#     column_names = [desc[0] for desc in cur.description]
+#     cur.close()
+#     data_with_columns = []
+#     for teacher in teachers:
+#         teacher_dict = dict(zip(column_names, teacher))
+#         data_with_columns.append(teacher_dict)
 
-    response = {
-        "code": "200",
-        "data": data_with_columns,
-        "status": "true"
-    }
+#     response = {
+#         "code": "200",
+#         "data": data_with_columns,
+#         "status": "true"
+#     }
 
-    return jsonify(response)
+#     return jsonify(response)
 
-@app.route('/del_teacher/<int:id>', methods=['DELETE'])
-def delete_teacher(id):
-    cur = mysql.connection.cursor()
-    teacher = cur.execute("DELETE FROM teacher WHERE id= %s", (id,))
-    mysql.connection.commit()
+# @app.route('/del_teacher/<int:id>', methods=['DELETE'])
+# def delete_teacher(id):
+#     cur = mysql.connection.cursor()
+#     teacher = cur.execute("DELETE FROM teacher WHERE id= %s", (id,))
+#     mysql.connection.commit()
 
-    if teacher:
-        return jsonify({'message': f'result with id {id} deleted successfully'})
-    else:
-        return jsonify({'message': f'result with id {id} not found'})
+#     if teacher:
+#         return jsonify({'message': f'result with id {id} deleted successfully'})
+#     else:
+#         return jsonify({'message': f'result with id {id} not found'})
 
 
-@app.route('/upd_teacher/<int:teacher_id>', methods=['PUT'])
-def update_teacher(teacher_id):
-    form = TeacherForm(request.form)
-    if form.validate():
-        center_id = form.center_id.data
-        user_id = form.user_id.data
-        subject_id = form.subject_id.data
-        class_id = form.class_id.data
-        status = form.status.data
-        updated_at = form.updated_at.data
+# @app.route('/upd_teacher/<int:teacher_id>', methods=['PUT'])
+# def update_teacher(teacher_id):
+#     form = TeacherForm(request.form)
+#     if form.validate():
+#         center_id = form.center_id.data
+#         user_id = form.user_id.data
+#         subject_id = form.subject_id.data
+#         class_id = form.class_id.data
+#         status = form.status.data
+#         updated_at = form.updated_at.data
 
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM teacher WHERE id=%s", (teacher_id,))
-        teacher = cur.fetchone()
+#         cur = mysql.connection.cursor()
+#         cur.execute("SELECT * FROM teacher WHERE id=%s", (teacher_id,))
+#         teacher = cur.fetchone()
 
-        if not teacher:
-            cur.close()
-            final_response = {'code': '404', 'status': 'false', 'message': 'teacher not found'}
-            return jsonify(final_response)
-        else:
-            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
-            result = cur.fetchone()
-            cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
-            result_1 = cur.fetchone()
-            cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
-            result_2 = cur.fetchone()  # Fetch a single row
-            cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
-            result_3 = cur.fetchone()
-            if result and result_1 and result_2 and result_3:
-                cur.execute("UPDATE teacher SET center_id=%s, user_id=%s, subject_id=%s, class_id=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, user_id, subject_id, class_id, status, updated_at, teacher_id))
-                mysql.connection.commit()
-                cur.close()
-                response = {'code': '200', 'status': 'true', 'message': 'teacher updated successfully'}
-                return jsonify(response)
-            else:
-                response = {'code': '400', 'status': 'false', 'message': 'teacher not updated successfully'}
-                return jsonify(response)
-    else:
-        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
-        return jsonify(final_response)
+#         if not teacher:
+#             cur.close()
+#             final_response = {'code': '404', 'status': 'false', 'message': 'teacher not found'}
+#             return jsonify(final_response)
+#         else:
+#             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+#             result = cur.fetchone()
+#             cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
+#             result_1 = cur.fetchone()
+#             cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
+#             result_2 = cur.fetchone()  # Fetch a single row
+#             cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
+#             result_3 = cur.fetchone()
+#             if result and result_1 and result_2 and result_3:
+#                 cur.execute("UPDATE teacher SET center_id=%s, user_id=%s, subject_id=%s, class_id=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, user_id, subject_id, class_id, status, updated_at, teacher_id))
+#                 mysql.connection.commit()
+#                 cur.close()
+#                 response = {'code': '200', 'status': 'true', 'message': 'teacher updated successfully'}
+#                 return jsonify(response)
+#             else:
+#                 response = {'code': '400', 'status': 'false', 'message': 'teacher not updated successfully'}
+#                 return jsonify(response)
+#     else:
+#         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+#         return jsonify(final_response)
 
 # Result Apis #..............................................................
 class ResultForm(Form):
