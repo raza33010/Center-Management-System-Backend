@@ -252,144 +252,143 @@ def update_center(center_id):
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
 
-# Accounts Apis #..............................................................
-class AccountForm(Form):
-    center_id = IntegerField('Center ID', [validators.InputRequired()])
-    user_id = IntegerField('User ID', [validators.InputRequired()])
-    description = StringField('Description')
-    bank_id = IntegerField('Bank ID', [validators.InputRequired()])
-    amount = DecimalField('Amount', [validators.InputRequired()])
-    transaction_id = StringField('Transaction ID')
-    transaction_type = StringField('Transaction Type')
-    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
-    created_at = DateTimeField('Created At', default=datetime.utcnow)
-    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+# # Accounts Apis #..............................................................
+# class AccountForm(Form):
+#     center_id = IntegerField('Center ID', [validators.InputRequired()])
+#     user_id = IntegerField('User ID', [validators.InputRequired()])
+#     description = StringField('Description')
+#     account_id = IntegerField('Bank ID', [validators.InputRequired()])
+#     amount = DecimalField('Amount', [validators.InputRequired()])
+#     transaction_id = StringField('Transaction ID')
+#     transaction_type = StringField('Transaction Type')
+#     status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
+#     created_at = DateTimeField('Created At', default=datetime.utcnow)
+#     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
 
-@app.route('/add_account', methods=['POST'])
-def add_account():
-    form = AccountForm(request.form)
-    if form.validate():       
-        center_id = form.center_id.data
-        user_id = form.user_id.data
-        description = form.description.data
-        bank_id = form.bank_id.data
-        amount = form.amount.data
-        transaction_id = form.transaction_id.data
-        transaction_type = form.transaction_type.data
-        status = form.status.data
-        created_at = form.created_at.data
-        updated_at = form.updated_at.data
+# @app.route('/add_account', methods=['POST'])
+# def add_account():
+#     form = AccountForm(request.form)
+#     if form.validate():       
+#         center_id = form.center_id.data
+#         user_id = form.user_id.data
+#         description = form.description.data
+#         bank_id = form.bank_id.data
+#         amount = form.amount.data
+#         transaction_id = form.transaction_id.data
+#         transaction_type = form.transaction_type.data
+#         status = form.status.data
+#         created_at = form.created_at.data
+#         updated_at = form.updated_at.data
 
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
-        result = cur.fetchone()
-        cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
-        result_1 = cur.fetchone()
-        if result and result_1:
-            cur.execute("INSERT INTO account(center_id, user_id, description, bank_id, amount, transaction_id, transaction_type, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, user_id, description, bank_id, amount, transaction_id, transaction_type, status, created_at, updated_at))
-            mysql.connection.commit()
-            cur.close()
-            response = {'code': '200', 'status': 'true', 'message': 'account added successfully'}
-            return jsonify(response)
-        else:
-            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
-            return jsonify(response)
-    else:
-        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
-        return jsonify(response)
-
-
-
-    
-@app.route('/account/<int:account_id>', methods=['GET'])
-def get_account(account_id):
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
-    account = cur.fetchone()
-    cur.close()
-
-    if account:
-        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
-
-        account_dict = dict(zip(column_names, account))
-
-        response = {'code': '200', 'status': 'true', 'data': account_dict}
-        return jsonify(response)
-    else:
-        response = {'code': '400', 'status': 'false', 'message': 'Center not found'}
-        return jsonify(response)
-
-@app.route('/account', methods=['GET'])
-def get_all_account():
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM account")
-    accounts = cur.fetchall()
-    column_names = [desc[0] for desc in cur.description]
-    cur.close()
-    data_with_columns = []
-    for account in accounts:
-        account_dict = dict(zip(column_names, account))
-        data_with_columns.append(account_dict)
-
-    response = {
-        "code": "200",
-        "data": data_with_columns,
-        "status": "true"
-    }
-
-    return jsonify(response)
-
-@app.route('/del_account/<int:id>', methods=['DELETE'])
-def delete_account(id):
-    cur = mysql.connection.cursor()
-    account = cur.execute("DELETE FROM account WHERE id= %s", (id,))
-    mysql.connection.commit()
-
-    if account:
-        return jsonify({'message': f'result with id {id} deleted successfully'})
-    else:
-        return jsonify({'message': f'result with id {id} not found'})
+#         cur = mysql.connection.cursor()
+#         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+#         result = cur.fetchone()
+#         cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
+#         result_1 = cur.fetchone()
+#         if result and result_1:
+#             cur.execute("INSERT INTO account(center_id, user_id, description, bank_id, amount, transaction_id, transaction_type, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, user_id, description, bank_id, amount, transaction_id, transaction_type, status, created_at, updated_at))
+#             mysql.connection.commit()
+#             cur.close()
+#             response = {'code': '200', 'status': 'true', 'message': 'account added successfully'}
+#             return jsonify(response)
+#         else:
+#             response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+#             return jsonify(response)
+#     else:
+#         response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+#         return jsonify(response)
 
 
-@app.route('/upd_account/<int:account_id>', methods=['PUT'])
-def update_account(account_id):
-    form = AccountForm(request.form)
-    if form.validate():
-        center_id = form.center_id.data
-        user_id = form.user_id.data
-        description = form.description.data
-        bank_id = form.bank_id.data
-        amount = form.amount.data
-        transaction_id = form.transaction_id.data
-        transaction_type = form.transaction_type.data
-        status = form.status.data
-        updated_at = form.updated_at.data
 
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
-        account = cur.fetchone()
+# @app.route('/account/<int:account_id>', methods=['GET'])
+# def get_account(account_id):
+#     cur = mysql.connection.cursor()
+#     cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
+#     account = cur.fetchone()
+#     cur.close() bank
 
-        if not account:
-            cur.close()
-            final_response = {'code': '404', 'status': 'false', 'message': 'account not found'}
-            return jsonify(final_response)
-        else:
-            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
-            result = cur.fetchone()
-            cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
-            result_1 = cur.fetchone()
-            if result and result_1:
-                cur.execute("UPDATE account SET center_id=%s, user_id=%s, description=%s, bank_id=%s, amount=%s, transaction_id=%s, transaction_type=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, user_id, description, bank_id, amount, transaction_id, transaction_type, status, updated_at, account_id))
-                mysql.connection.commit()
-                cur.close()
-                response = {'code': '200', 'status': 'true', 'message': 'account updated successfully'}
-                return jsonify(response)
-            else:
-                response = {'code': '400', 'status': 'false', 'message': 'account not updated successfully'}
-                return jsonify(response)
-    else:
-        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
-        return jsonify(final_response)
+#     if account:
+#         column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+#         account_dict = dict(zip(column_names, account))
+
+#         response = {'code': '200', 'status': 'true', 'data': account_dict}
+#         return jsonify(response)
+#     else:
+#         response = {'code': '400', 'status': 'false', 'message': 'Center not found'}
+#         return jsonify(response)
+
+# @app.route('/account', methods=['GET'])
+# def get_all_account():
+#     cur = mysql.connection.cursor()
+#     cur.execute("SELECT * FROM account")
+#     accounts = cur.fetchall()
+#     column_names = [desc[0] for desc in cur.description]
+#     cur.close()
+#     data_with_columns = []
+#     for account in accounts:
+#         account_dict = dict(zip(column_names, account))
+#         data_with_columns.append(account_dict)
+
+#     response = {
+#         "code": "200",
+#         "data": data_with_columns,
+#         "status": "true"
+#     }
+
+#     return jsonify(response)
+
+# @app.route('/del_account/<int:id>', methods=['DELETE'])
+# def delete_account(id):
+#     cur = mysql.connection.cursor()
+#     account = cur.execute("DELETE FROM account WHERE id= %s", (id,))
+#     mysql.connection.commit()
+
+#     if account:
+#         return jsonify({'message': f'result with id {id} deleted successfully'})
+#     else:
+#         return jsonify({'message': f'result with id {id} not found'})
+
+
+# @app.route('/upd_account/<int:account_id>', methods=['PUT'])
+# def update_account(account_id):
+#     form = AccountForm(request.form)
+#     if form.validate():
+#         center_id = form.center_id.data
+#         user_id = form.user_id.data
+#         description = form.description.data
+#         bank_id = form.bank_id.data
+#         amount = form.amount.data
+#         transaction_id = form.transaction_id.data
+#         transaction_type = form.transaction_type.data
+#         status = form.status.data
+#         updated_at = form.updated_at.data
+
+#         cur = mysql.connection.cursor()
+#         cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
+#         account = cur.fetchone()
+
+#         if not account:
+#             cur.close()
+#             final_response = {'code': '404', 'status': 'false', 'message': 'account not found'}
+#             return jsonify(final_response)
+#         else:
+#             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+#             result = cur.fetchone()
+#             cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
+#             result_1 = cur.fetchone()
+#             if result and result_1:
+#                 cur.execute("UPDATE account SET center_id=%s, user_id=%s, description=%s, bank_id=%s, amount=%s, transaction_id=%s, transaction_type=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, user_id, description, bank_id, amount, transaction_id, transaction_type, status, updated_at, account_id))
+#                 mysql.connection.commit()
+#                 cur.close()
+#                 response = {'code': '200', 'status': 'true', 'message': 'account updated successfully'}
+#                 return jsonify(response)
+#             else:
+#                 response = {'code': '400', 'status': 'false', 'message': 'account not updated successfully'}
+#                 return jsonify(response)
+#     else:
+#         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+#         return jsonify(final_response)
 
 # Users Apis #..............................................................
 class UserForm(Form):
@@ -2481,6 +2480,316 @@ def update_cchapter(cchapter_id):
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
 
+# Account Apis ..........
+class AccountForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    balance = IntegerField('balance', [validators.InputRequired()])
+    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+
+@app.route('/add_account', methods=['POST'])
+def add_account():
+    form = AccountForm(request.form)
+    if form.validate():       
+        center_id = form.center_id.data
+        name = form.name.data
+        balance = form.balance.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        if result:
+            cur.execute("INSERT INTO account(center_id, name, balance, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, name, balance, status, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'account added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+
+
+    
+@app.route('/account/<int:account_id>', methods=['GET'])
+def get_account(account_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
+    account = cur.fetchone()
+    cur.close()
+
+    if account:
+        response = {'code': '200', 'status': 'true', 'data': account}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'account not found'}
+        return jsonify(response)
+
+@app.route('/account', methods=['GET'])
+def get_all_account():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM account")
+    account = cur.fetchall()
+    cur.close()
+
+    response = {'code': '200', 'status': 'true', 'data': account}
+    return jsonify(response)
+
+@app.route('/del_account/<int:id>', methods=['DELETE'])
+def delete_account(id):
+    cur = mysql.connection.cursor()
+    account = cur.execute("DELETE FROM account WHERE id= %s", (id,))
+    mysql.connection.commit()
+
+    if account:
+        return jsonify({'message': f'result with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'result with id {id} not found'})
+
+
+@app.route('/upd_account/<int:account_id>', methods=['PUT'])
+def update_account(account_id):
+    form = AccountForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        balance = form.balance.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
+        account = cur.fetchone()
+
+        if not account:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'account not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            if result:
+                cur.execute("UPDATE account SET center_id=%s, name=%s, balance=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, balance, status, updated_at, account_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'account updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'account not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Transaction Apis ..........
+class TransactionForm(Form):
+    name = StringField('Name', [validators.InputRequired()])
+    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+@app.route('/add_transaction', methods=['POST'])
+def add_transaction():
+    form = TransactionForm(request.form)
+    if form.validate():       
+        name = form.name.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("INSERT INTO transaction(name, status, created_at, updated_at) VALUES(%s, %s, %s, %s)", (name, status, created_at, updated_at))
+        mysql.connection.commit()
+        cur.close()
+        response = {'code': '200', 'status': 'true', 'message': 'transaction added successfully'}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+
+
+    
+@app.route('/transaction/<int:transaction_id>', methods=['GET'])
+def get_transaction(transaction_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM transaction WHERE id=%s", (transaction_id,))
+    transaction = cur.fetchone()
+    cur.close()
+
+    if transaction:
+        response = {'code': '200', 'status': 'true', 'data': transaction}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'transaction not found'}
+        return jsonify(response)
+
+@app.route('/transaction', methods=['GET'])
+def get_all_transaction():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM transaction")
+    transaction = cur.fetchall()
+    cur.close()
+
+    response = {'code': '200', 'status': 'true', 'data': transaction}
+    return jsonify(response)
+
+@app.route('/del_transaction/<int:id>', methods=['DELETE'])
+def delete_transaction(id):
+    cur = mysql.connection.cursor()
+    transaction = cur.execute("DELETE FROM transaction WHERE id= %s", (id,))
+    mysql.connection.commit()
+
+    if transaction:
+        return jsonify({'message': f'result with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'result with id {id} not found'})
+
+
+@app.route('/upd_transaction/<int:transaction_id>', methods=['PUT'])
+def update_transaction(transaction_id):
+    form = TransactionForm(request.form)
+    if form.validate():
+        name = form.name.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM transaction WHERE id=%s", (transaction_id,))
+        transaction = cur.fetchone()
+
+        if not transaction:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'transaction not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("UPDATE transaction SET name=%s, status=%s, updated_at=%s WHERE id=%s", (name, status, updated_at, transaction_id))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'transaction updated successfully'}
+            return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Account Apis ..........
+class AccountForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    balance = IntegerField('balance', [validators.InputRequired()])
+    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+
+@app.route('/add_account', methods=['POST'])
+def add_account():
+    form = AccountForm(request.form)
+    if form.validate():       
+        center_id = form.center_id.data
+        name = form.name.data
+        balance = form.balance.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        if result:
+            cur.execute("INSERT INTO account(center_id, name, balance, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, name, balance, status, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'account added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+
+
+    
+@app.route('/account/<int:account_id>', methods=['GET'])
+def get_account(account_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
+    account = cur.fetchone()
+    cur.close()
+
+    if account:
+        response = {'code': '200', 'status': 'true', 'data': account}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'account not found'}
+        return jsonify(response)
+
+@app.route('/account', methods=['GET'])
+def get_all_account():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM account")
+    account = cur.fetchall()
+    cur.close()
+
+    response = {'code': '200', 'status': 'true', 'data': account}
+    return jsonify(response)
+
+@app.route('/del_account/<int:id>', methods=['DELETE'])
+def delete_account(id):
+    cur = mysql.connection.cursor()
+    account = cur.execute("DELETE FROM account WHERE id= %s", (id,))
+    mysql.connection.commit()
+
+    if account:
+        return jsonify({'message': f'result with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'result with id {id} not found'})
+
+
+@app.route('/upd_account/<int:account_id>', methods=['PUT'])
+def update_account(account_id):
+    form = AccountForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        balance = form.balance.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
+        account = cur.fetchone()
+
+        if not account:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'account not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            if result:
+                cur.execute("UPDATE account SET center_id=%s, name=%s, balance=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, balance, status, updated_at, account_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'account updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'account not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
 
 
 if __name__ == "__main__":
