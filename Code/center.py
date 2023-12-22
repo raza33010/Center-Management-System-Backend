@@ -2681,19 +2681,22 @@ def update_transaction(transaction_id):
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
 
-# Account Apis ..........
-class AccountForm(Form):
-    center_id = IntegerField('Center ID', [validators.InputRequired()])
+# Expense Apis ..........
+class ExpenseForm(Form):
+    user_id = IntegerField('user ID', [validators.InputRequired()])
+    account_id = IntegerField('account ID', [validators.InputRequired()])
+    transaction_id = IntegerField('transaction ID', [validators.InputRequired()]) 
     name = StringField('Name', [validators.InputRequired()])
     balance = IntegerField('balance', [validators.InputRequired()])
+    amount = IntegerField('amount', [validators.InputRequired()])
     status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
     created_at = DateTimeField('Created At', default=datetime.utcnow)
     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
 
 
-@app.route('/add_account', methods=['POST'])
-def add_account():
-    form = AccountForm(request.form)
+@app.route('/add_expense', methods=['POST'])
+def add_expense():
+    form = ExpenseForm(request.form)
     if form.validate():       
         center_id = form.center_id.data
         name = form.name.data
@@ -2706,10 +2709,10 @@ def add_account():
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()
         if result:
-            cur.execute("INSERT INTO account(center_id, name, balance, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, name, balance, status, created_at, updated_at))
+            cur.execute("INSERT INTO expense(center_id, name, balance, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, name, balance, status, created_at, updated_at))
             mysql.connection.commit()
             cur.close()
-            response = {'code': '200', 'status': 'true', 'message': 'account added successfully'}
+            response = {'code': '200', 'status': 'true', 'message': 'expense added successfully'}
             return jsonify(response)
         else:
             response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
@@ -2721,45 +2724,45 @@ def add_account():
 
 
     
-@app.route('/account/<int:account_id>', methods=['GET'])
-def get_account(account_id):
+@app.route('/expense/<int:expense_id>', methods=['GET'])
+def get_expense(expense_id):
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
-    account = cur.fetchone()
+    cur.execute("SELECT * FROM expense WHERE id=%s", (expense_id,))
+    expense = cur.fetchone()
     cur.close()
 
-    if account:
-        response = {'code': '200', 'status': 'true', 'data': account}
+    if expense:
+        response = {'code': '200', 'status': 'true', 'data': expense}
         return jsonify(response)
     else:
-        response = {'code': '400', 'status': 'false', 'message': 'account not found'}
+        response = {'code': '400', 'status': 'false', 'message': 'expense not found'}
         return jsonify(response)
 
-@app.route('/account', methods=['GET'])
-def get_all_account():
+@app.route('/expense', methods=['GET'])
+def get_all_expense():
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM account")
-    account = cur.fetchall()
+    cur.execute("SELECT * FROM expense")
+    expense = cur.fetchall()
     cur.close()
 
-    response = {'code': '200', 'status': 'true', 'data': account}
+    response = {'code': '200', 'status': 'true', 'data': expense}
     return jsonify(response)
 
-@app.route('/del_account/<int:id>', methods=['DELETE'])
-def delete_account(id):
+@app.route('/del_expense/<int:id>', methods=['DELETE'])
+def delete_expense(id):
     cur = mysql.connection.cursor()
-    account = cur.execute("DELETE FROM account WHERE id= %s", (id,))
+    expense = cur.execute("DELETE FROM expense WHERE id= %s", (id,))
     mysql.connection.commit()
 
-    if account:
+    if expense:
         return jsonify({'message': f'result with id {id} deleted successfully'})
     else:
         return jsonify({'message': f'result with id {id} not found'})
 
 
-@app.route('/upd_account/<int:account_id>', methods=['PUT'])
-def update_account(account_id):
-    form = AccountForm(request.form)
+@app.route('/upd_expense/<int:expense_id>', methods=['PUT'])
+def update_expense(expense_id):
+    form = ExpenseForm(request.form)
     if form.validate():
         center_id = form.center_id.data
         name = form.name.data
@@ -2768,24 +2771,24 @@ def update_account(account_id):
         updated_at = form.updated_at.data
 
         cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
-        account = cur.fetchone()
+        cur.execute("SELECT * FROM expense WHERE id=%s", (expense_id,))
+        expense = cur.fetchone()
 
-        if not account:
+        if not expense:
             cur.close()
-            final_response = {'code': '404', 'status': 'false', 'message': 'account not found'}
+            final_response = {'code': '404', 'status': 'false', 'message': 'expense not found'}
             return jsonify(final_response)
         else:
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
             if result:
-                cur.execute("UPDATE account SET center_id=%s, name=%s, balance=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, balance, status, updated_at, account_id))
+                cur.execute("UPDATE expense SET center_id=%s, name=%s, balance=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, balance, status, updated_at, expense_id))
                 mysql.connection.commit()
                 cur.close()
-                response = {'code': '200', 'status': 'true', 'message': 'account updated successfully'}
+                response = {'code': '200', 'status': 'true', 'message': 'expense updated successfully'}
                 return jsonify(response)
             else:
-                response = {'code': '400', 'status': 'false', 'message': 'account not updated successfully'}
+                response = {'code': '400', 'status': 'false', 'message': 'expense not updated successfully'}
                 return jsonify(response)
     else:
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
