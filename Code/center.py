@@ -2698,18 +2698,25 @@ class ExpenseForm(Form):
 def add_expense():
     form = ExpenseForm(request.form)
     if form.validate():       
-        center_id = form.center_id.data
+        user_id = form.user_id.data
+        account_id = form.account_id.data
+        transaction_id = form.transaction_id.data
         name = form.name.data
         balance = form.balance.data
+        amount = form.amount.data
         status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
 
         cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
         result = cur.fetchone()
-        if result:
-            cur.execute("INSERT INTO expense(center_id, name, balance, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, name, balance, status, created_at, updated_at))
+        cur.execute("SELECT * FROM account WHERE id = %s", (account_id,))
+        result1 = cur.fetchone()
+        cur.execute("SELECT * FROM transaction WHERE id = %s", (transaction_id,))
+        result2 = cur.fetchone()
+        if result and result1 and result2:
+            cur.execute("INSERT INTO expense(user_id, account_id, transaction_id, name, balance, amount, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)", (user_id, account_id, transaction_id, name, balance, amount, status, created_at, updated_at))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'expense added successfully'}
@@ -2764,9 +2771,12 @@ def delete_expense(id):
 def update_expense(expense_id):
     form = ExpenseForm(request.form)
     if form.validate():
-        center_id = form.center_id.data
+        user_id = form.user_id.data
+        account_id = form.account_id.data
+        transaction_id = form.transaction_id.data
         name = form.name.data
         balance = form.balance.data
+        amount = form.amount.data
         status = form.status.data
         updated_at = form.updated_at.data
 
@@ -2779,10 +2789,14 @@ def update_expense(expense_id):
             final_response = {'code': '404', 'status': 'false', 'message': 'expense not found'}
             return jsonify(final_response)
         else:
-            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
             result = cur.fetchone()
-            if result:
-                cur.execute("UPDATE expense SET center_id=%s, name=%s, balance=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, balance, status, updated_at, expense_id))
+            cur.execute("SELECT * FROM account WHERE id = %s", (account_id,))
+            result1 = cur.fetchone()
+            cur.execute("SELECT * FROM transaction WHERE id = %s", (transaction_id,))
+            result2 = cur.fetchone()
+            if result and result1 and result2:
+                cur.execute("INSERT INTO expense(user_id, account_id, transaction_id, name, balance, amount, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)", (user_id, account_id, transaction_id, name, balance, amount, status, created_at, updated_at))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'expense updated successfully'}
