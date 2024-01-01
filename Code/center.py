@@ -2538,11 +2538,23 @@ def get_account(account_id):
 def get_all_account():
     cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM account")
-    account = cur.fetchall()
+    accounts = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
     cur.close()
 
-    response = {'code': '200', 'status': 'true', 'data': account}
+    data_with_columns = []
+    for account in accounts:
+        account_dict = dict(zip(column_names, account))
+        data_with_columns.append(account_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
     return jsonify(response)
+
 
 @app.route('/del_account/<int:id>', methods=['DELETE'])
 def delete_account(id):
@@ -2778,6 +2790,7 @@ def update_expense(expense_id):
         balance = form.balance.data
         amount = form.amount.data
         status = form.status.data
+        created_at = form.created_at.data
         updated_at = form.updated_at.data
 
         cur = mysql.connection.cursor()
