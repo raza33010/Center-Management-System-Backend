@@ -722,7 +722,10 @@ def get_all_batch():
     data = request.get_json()
     center_id = data.get('center_id')
     cur = mysql.connection.cursor()
-    cur.execute(f"SELECT * FROM batch WHERE Center_id = {center_id}")
+    if center_id == '0':
+        cur.execute("SELECT * FROM batch")
+    else:
+        cur.execute(f"SELECT * FROM batch WHERE Center_id = {center_id}")
     batch = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -891,16 +894,28 @@ def get_all_class():
     data = request.get_json()
     center_id = data.get('center_id')
     cur = mysql.connection.cursor()
-    cur.execute(f"""
-        SELECT
-    c.*,
-    GROUP_CONCAT(s.name) AS subject_names
-FROM class c
-JOIN subject s ON FIND_IN_SET(s.id, c.subjects_id) > 0
-WHERE c.center_id = {center_id}
-GROUP BY c.id ;
+    if center_id == '0':
+        cur.execute(f"""
+            SELECT
+        c.*,
+        GROUP_CONCAT(s.name) AS subject_names
+    FROM class c
+    JOIN subject s ON FIND_IN_SET(s.id, c.subjects_id) > 0
+    GROUP BY c.id ;
 
-    """)
+        """)
+        
+    else: 
+        cur.execute(f"""
+            SELECT
+        c.*,
+        GROUP_CONCAT(s.name) AS subject_names
+    FROM class c
+    JOIN subject s ON FIND_IN_SET(s.id, c.subjects_id) > 0
+    WHERE c.center_id = {center_id}
+    GROUP BY c.id ;
+
+        """)
     subjects = cur.fetchall()
     print(subjects)
     column_names = [desc[0] for desc in cur.description]
@@ -1404,16 +1419,27 @@ def get_all_subject():
     data = request.get_json()
     center_id = data.get('center_id')
     cur = mysql.connection.cursor()
-    cur.execute(f"""
-        SELECT
-    s.*,
-    GROUP_CONCAT(u.name) AS user_names
-FROM subject s
-JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
-WHERE s.center_id = {center_id}
-GROUP BY s.id ;
+    if center_id == '0':            
+        cur.execute(f"""
+            SELECT
+        s.*,
+        GROUP_CONCAT(u.name) AS user_names
+    FROM subject s
+    JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+    WHERE s.center_id = {center_id}
+    GROUP BY s.id ;
 
-    """)
+        """)
+    else:
+        cur.execute(f"""
+            SELECT
+        s.*,
+        GROUP_CONCAT(u.name) AS user_names
+    FROM subject s
+    JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+    GROUP BY s.id ;
+
+        """)
     subjects = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -2534,10 +2560,15 @@ def get_account(account_id):
         response = {'code': '400', 'status': 'false', 'message': 'account not found'}
         return jsonify(response)
 
-@app.route('/account', methods=['GET'])
+@app.route('/account', methods=['POST'])
 def get_all_account():
+    data = request.get_json()
+    center_id = data.get('center_id')
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM account")
+    if center_id == '0':
+        cur.execute("SELECT * FROM account")
+    else:
+        cur.execute(f"SELECT * FROM account WHERE center_id = {center_id}")
     accounts = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
     cur.close()
