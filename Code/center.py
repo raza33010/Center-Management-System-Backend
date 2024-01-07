@@ -395,11 +395,6 @@ class UserForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     name = StringField('Name', [validators.InputRequired()])
     role_id = StringField('Name', [validators.InputRequired()])
-
-    # status = IntegerField('Status', [
-    #     validators.InputRequired(),
-    #     validators.AnyOf([0, 1], 'Must be 0 or 1')
-    # ], default=1)
     created_at = DateTimeField('Created At', default=datetime.utcnow)
     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
     email = StringField('Email', [validators.InputRequired(), validators.Email()])
