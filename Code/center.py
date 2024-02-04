@@ -15,7 +15,7 @@ app.config['MYSQL_PASSWORD'] = ''
 app.config['MYSQL_DB'] = 'center'
 app.config['UPLOADED_DIRECTORY'] = 'uploads/'
 app.config['UPLOAD_EXTENSIONS'] = ['.jpg','.png','.pdf']
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
+# app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 app.config['CORS_ALLOW_ALL_ORIGINS'] = True
 CORS(app)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
@@ -1503,17 +1503,17 @@ def update_subject(subject_id):
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
 
-# # Teacher Apis #..............................................................
-class ExpenseForm(Form):
-    user_id = IntegerField('Exam ID', [validators.InputRequired()])
-    account_id = IntegerField('Student ID', [validators.InputRequired()])
-    transaction_id = IntegerField('Student ID', [validators.InputRequired()])
-    amount = IntegerField('Student ID', [validators.InputRequired()])
-    description = StringField('Name', [validators.InputRequired()])  
-    status = IntegerField('Status', [validators.InputRequired(),
-                                     validators.AnyOf([0, 1], 'Must be 0 or 1')])
-    created_at = DateTimeField('Created At', default=datetime.utcnow)
-    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+# # # Teacher Apis #..............................................................
+# class ExpenseForm(Form):
+#     user_id = IntegerField('Exam ID', [validators.InputRequired()])
+#     account_id = IntegerField('Student ID', [validators.InputRequired()])
+#     transaction_id = IntegerField('Student ID', [validators.InputRequired()])
+#     amount = IntegerField('Student ID', [validators.InputRequired()])
+#     description = StringField('Name', [validators.InputRequired()])  
+#     status = IntegerField('Status', [validators.InputRequired(),
+#                                      validators.AnyOf([0, 1], 'Must be 0 or 1')])
+#     created_at = DateTimeField('Created At', default=datetime.utcnow)
+#     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
 
 # Result Apis #..............................................................
 class ResultForm(Form):
@@ -2095,7 +2095,7 @@ def update_rscreen(rscreen_id):
 # Examination Apis #..............................................................
 class ExaminationForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
-    name = StringField('Name', [validators.InputRequired()])
+    class_id = IntegerField('Name', [validators.InputRequired()])
     subject_id = IntegerField('Subject ID', [validators.InputRequired()])
     type = StringField('Paper Type')
     month = StringField('Month', [validators.InputRequired()])
@@ -2112,12 +2112,13 @@ class ExaminationForm(Form):
     created_at = DateTimeField('Created At', default=datetime.utcnow)
     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
 
+
 @app.route('/add_examination', methods=['POST'])
 def add_exmaination():
     form = ExaminationForm(request.form)
     if form.validate():
         center_id = form.center_id.data
-        name = form.name.data
+        class_id = form.class_id.data
         subject_id = form.subject_id.data
         type = form.type.data
         month = form.month.data
@@ -2132,6 +2133,16 @@ def add_exmaination():
         status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
+        logo = request.files['logo']
+
+        filename=logo.filename
+        if filename != '':
+            file_ext = os.path.splitext(filename)[1]
+            if file_ext not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'E_400'}
+                return jsonify(response)
+        logo.save(f'uploads/{logo.filename}')
+
 
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
@@ -2139,7 +2150,7 @@ def add_exmaination():
         cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
         result_1 = cur.fetchone()
         if result and result_1:
-            cur.execute("INSERT INTO examination(center_id, name, subject_id, type, month, date, total_marks, invigilator, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, subject_id, type, month, date, total_marks, invigilator, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at))
+            cur.execute("INSERT INTO examination(center_id, class_id, subject_id, type, month, date, total_marks, invigilator, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at, file) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, class_id, subject_id, type, month, date, total_marks, invigilator, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at, filename))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'examination added successfully'}
@@ -2170,10 +2181,33 @@ def get_examination(examination_id):
         response = {'code': '400', 'status': 'false', 'message': 'examination not found'}
         return jsonify(response)
 
-@app.route('/examination', methods=['GET'])
+@app.route('/examination', methods=['POST'])
 def get_all_examination():
+    data = request.get_json()
+    center_id = data.get('center_id')
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM examination")
+    if center_id == 0:
+        cur.execute( """
+SELECT examination.*, class.class_name, subject.subject_name
+FROM examination
+JOIN class ON examination.class_id = class.id
+JOIN subject ON examination.subject_id = subject.id
+""")
+    else:
+        cur.execute(f"""
+            SELECT
+        e.*,
+        GROUP_CONCAT(s.name) AS subject_names,
+        GROUP_CONCAT(u.name) AS user_names,
+        GROUP_CONCAT(c.name) AS class_names
+    FROM examination e
+    JOIN subject s ON s.id = e.subject_id
+    JOIN class c ON c.id = e.subject_id
+    JOIN user u ON u.id = e.user_id
+    WHERE e.center_id = {center_id}
+    GROUP BY e.id ;
+
+        """)
     examinations = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -2208,7 +2242,7 @@ def update_examination(examination_id):
     form = ExaminationForm(request.form)
     if form.validate():
         center_id = form.center_id.data
-        name = form.name.data
+        class_id = form.class_id.data
         subject_id = form.subject_id.data
         type = form.type.data
         month = form.month.data
@@ -2236,7 +2270,7 @@ def update_examination(examination_id):
             cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
             result_1 = cur.fetchone()
             if result and result_1:
-                cur.execute("UPDATE examination SET center_id=%s, name=%s, subject_id=%s, type=%s, month=%s, date=%s, total_marks=%s, invigilator=%s, schedule_start_time=%s, schedule_end_time=%s, start_time=%s, end_time=%s, checking_status=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, subject_id, type, month, date, total_marks, invigilator, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, updated_at, examination_id))
+                cur.execute("UPDATE examination SET center_id=%s, class_id=%s, subject_id=%s, type=%s, month=%s, date=%s, total_marks=%s, invigilator=%s, schedule_start_time=%s, schedule_end_time=%s, start_time=%s, end_time=%s, checking_status=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, class_id, subject_id, type, month, date, total_marks, invigilator, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, updated_at, examination_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'examination updated successfully'}
@@ -2595,6 +2629,7 @@ class ExpenseForm(Form):
     user_id = IntegerField('user ID', [validators.InputRequired()])
     account_id = IntegerField('account ID', [validators.InputRequired()])
     transaction_id = IntegerField('transaction ID', [validators.InputRequired()]) 
+    center_id = IntegerField('center ID', [validators.InputRequired()]) 
     name = StringField('Name', [validators.InputRequired()])
     balance = IntegerField('balance', [validators.InputRequired()])
     amount = IntegerField('amount', [validators.InputRequired()])
@@ -2610,6 +2645,7 @@ def add_expense():
         user_id = form.user_id.data
         account_id = form.account_id.data
         transaction_id = form.transaction_id.data
+        center_id = form.center_id.data
         name = form.name.data
         balance = form.balance.data
         amount = form.amount.data
@@ -2624,8 +2660,10 @@ def add_expense():
         result1 = cur.fetchone()
         cur.execute("SELECT * FROM transaction WHERE id = %s", (transaction_id,))
         result2 = cur.fetchone()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result2 = cur.fetchone()
         if result and result1 and result2:
-            cur.execute("INSERT INTO expense(user_id, account_id, transaction_id, name, balance, amount, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)", (user_id, account_id, transaction_id, name, balance, amount, status, created_at, updated_at))
+            cur.execute("INSERT INTO expense(user_id, account_id, transaction_id, center_id, name, balance, amount, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (user_id, account_id, transaction_id, center_id, name, balance, amount, status, created_at, updated_at))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'expense added successfully'}
