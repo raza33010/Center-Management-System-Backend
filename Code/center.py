@@ -666,6 +666,7 @@ def update_user(user_id):
 class BatchForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     name = StringField('Name', [validators.InputRequired()])
+    year = StringField('Year', [validators.InputRequired()])
     # status = IntegerField('Status', [
     #     validators.InputRequired(),
     #     validators.AnyOf([0, 1], 'Must be 0 or 1')
@@ -676,6 +677,7 @@ class BatchForm(Form):
 class UBatchForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     name = StringField('Name', [validators.InputRequired()])
+    year = StringField('Year', [validators.InputRequired()])
     status = IntegerField('Status', [
         validators.InputRequired(),
         validators.AnyOf([0, 1], 'Must be 0 or 1')
@@ -690,6 +692,7 @@ def add_batch():
     if form.validate():
         center_id = form.center_id.data
         name = form.name.data
+        year = form.year.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
 
@@ -698,7 +701,7 @@ def add_batch():
         result = cur.fetchone()
         
         if result:
-            cur.execute("INSERT INTO batch(center_id, name, created_at, updated_at) VALUES( %s, %s, %s, %s)", (center_id, name, created_at, updated_at))
+            cur.execute("INSERT INTO batch(center_id, name, created_at, updated_at, year) VALUES( %s, %s, %s, %s, %s)", (center_id, name, created_at, updated_at, year))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'Batch added successfully'}
@@ -776,6 +779,7 @@ def update_batch(batch_id):
     if form.validate():
         center_id = form.center_id.data
         name = form.name.data
+        year = form.year.data
         status = form.status.data
         updated_at = form.updated_at.data
         cur = mysql.connection.cursor()
@@ -791,7 +795,7 @@ def update_batch(batch_id):
             result = cur.fetchone()
 
             if result:
-                cur.execute("UPDATE batch SET center_id=%s, name=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, status, updated_at, batch_id))
+                cur.execute("UPDATE batch SET center_id=%s, name=%s, status=%s, updated_at=%s, year=%s WHERE id=%s", (center_id, name, status, updated_at, year, batch_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'batch updated successfully'}
@@ -1003,18 +1007,20 @@ def update_class(class_id):
 # Duty Apis #..............................................................
 class DutyForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
-    user_id = IntegerField('User_id', [validators.InputRequired()])
+    user_id = StringField('User Id', [validators.InputRequired()])
     job = StringField('Job', [validators.InputRequired()])
     date = DateField('Date')
     duty_time = StringField('duty_time')
     description = StringField('Assigned By', [validators.InputRequired()])
-    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
+    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')],default = 1)
     created_at = DateTimeField('Created At', default=datetime.utcnow)
     updated_at = DateTimeField('Updated At', default=datetime.utcnow)
 
 @app.route('/add_duty', methods=['POST'])
 def add_duty():
     form = DutyForm(request.form)
+    status = form.status.data
+    print(status)
     if form.validate():
         center_id = form.center_id.data
         user_id = form.user_id.data
@@ -1051,12 +1057,15 @@ def add_duty():
 def get_duty(duty_id):
     cur = mysql.connection.cursor()
     cur.execute(f"""
-            SELECT duty.*, user.name AS user_names
-FROM duty
-INNER JOIN user ON user.id=duty.user_id 
-WHERE duty.id ={duty_id};
+        SELECT
+    d.*,
+    GROUP_CONCAT(u.name) AS user_names
+FROM duty d
+JOIN user u ON FIND_IN_SET(u.id, d.user_id) > 0
+WHERE d.id = {duty_id}
+GROUP BY d.id ;
 
-        """)
+    """)
     duty = cur.fetchone()
     cur.close()
 
@@ -1084,10 +1093,14 @@ INNER JOIN user ON user.id=duty.user_id
         """)
     else:
         cur.execute(f"""
-            SELECT duty.*, user.name AS user_names
-FROM duty
-INNER JOIN user ON user.id=duty.user_id 
-WHERE duty.center_id ={center_id};
+            SELECT
+        d.*,
+        GROUP_CONCAT(u.name) AS user_names
+    FROM duty d
+    JOIN user u ON FIND_IN_SET(u.id, d.user_id) > 0
+    WHERE d.center_id = {center_id}
+    GROUP BY d.id ;
+
         """) 
 
     dutys = cur.fetchall()
@@ -1245,10 +1258,38 @@ def get_student(student_id):
         response = {'code': '400', 'status': 'false', 'message': 'student not found'}
         return jsonify(response)
 
-@app.route('/student', methods=['GET'])
+@app.route('/student', methods=['POST'])
 def get_all_student():
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM student")
+    data = request.get_json()
+    center_id = data.get('center_id')
+    if center_id == '0':
+        cur.execute(f"""
+            SELECT student.*, class.name AS class_names,batch.name AS batch_names,group.name AS group_names
+FROM student
+INNER JOIN batch ON batch.id=student.batch_id 
+INNER JOIN class ON class.id=student.class_id 
+INNER JOIN group ON group.id=student.group_id;
+
+        """)
+    else:
+        cur.execute(f"""
+    SELECT 
+        student.*, 
+        class.name AS class_names,
+        batch.name AS batch_names,
+        `group`.name AS group_names
+    FROM 
+        student
+    INNER JOIN 
+        batch ON batch.id = student.batch_id 
+    INNER JOIN 
+        class ON class.id = student.class_id 
+    INNER JOIN 
+        `group` ON `group`.id = student.group_id 
+    WHERE 
+        student.center_id = {center_id};
+""")
     students = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -1458,6 +1499,7 @@ def get_all_subjects():
     cur = mysql.connection.cursor()
     cur.execute(f"SELECT id, name FROM subject WHERE  center_id = {center_id}")
     Uroles = cur.fetchall()
+    print(Uroles)
     column_names = [desc[0] for desc in cur.description]
     cur.close()
     data_with_columns = []
@@ -1485,7 +1527,6 @@ def get_all_subject():
         GROUP_CONCAT(u.name) AS user_names
     FROM subject s
     JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
-    WHERE s.center_id = {center_id}
     GROUP BY s.id ;
 
         """)
@@ -1496,9 +1537,11 @@ def get_all_subject():
         GROUP_CONCAT(u.name) AS user_names
     FROM subject s
     JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+    WHERE s.center_id = {center_id}
     GROUP BY s.id ;
 
         """)
+
     subjects = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -2163,6 +2206,7 @@ class ExaminationForm(Form):
     subject_id = IntegerField('Subject ID', [validators.InputRequired()])
     type = StringField('Paper Type')
     month = StringField('Month', [validators.InputRequired()])
+    duration = StringField('Duration', [validators.InputRequired()])
     date = DateField('Date')
     total_marks = IntegerField('Total Marks')
     user_id = StringField('Invigilator')
@@ -2187,6 +2231,7 @@ def add_exmaination():
         subject_id = form.subject_id.data
         type = form.type.data
         month = form.month.data
+        duration = form.duration.data
         date = form.date.data
         total_marks = form.total_marks.data
         user_id = form.user_id.data
@@ -2215,7 +2260,7 @@ def add_exmaination():
         cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
         result_1 = cur.fetchone()
         if result and result_1:
-            cur.execute("INSERT INTO examination(center_id, class_id, subject_id, type, month, date, total_marks, user_id, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at, file) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, class_id, subject_id, type, month, date, total_marks, user_id, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at, filename))
+            cur.execute("INSERT INTO examination(center_id, class_id, subject_id, type, month, date, total_marks, user_id, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at, file, duration) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, class_id, subject_id, type, month, date, total_marks, user_id, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, created_at, updated_at, filename, duration))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'examination added successfully'}
@@ -2339,6 +2384,7 @@ def update_examination(examination_id):
         subject_id = form.subject_id.data
         type = form.type.data
         month = form.month.data
+        duration = form.duration.data
         date = form.date.data
         total_marks = form.total_marks.data
         user_id = form.user_id.data
@@ -2381,7 +2427,7 @@ def update_examination(examination_id):
             cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
             result_1 = cur.fetchone()
             if result and result_1:
-                cur.execute("UPDATE examination SET center_id=%s, class_id=%s, subject_id=%s, type=%s, month=%s, date=%s, total_marks=%s, user_id=%s, schedule_start_time=%s, schedule_end_time=%s, start_time=%s, end_time=%s, checking_status=%s, status=%s, updated_at=%s, file=%s WHERE id=%s", (center_id, class_id, subject_id, type, month, date, total_marks, user_id, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, updated_at, logo, examination_id))
+                cur.execute("UPDATE examination SET center_id=%s, class_id=%s, subject_id=%s, type=%s, month=%s, date=%s, total_marks=%s, user_id=%s, schedule_start_time=%s, schedule_end_time=%s, start_time=%s, end_time=%s, checking_status=%s, status=%s, updated_at=%s, file=%s, duration=%s WHERE id=%s", (center_id, class_id, subject_id, type, month, date, total_marks, user_id, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, updated_at, logo, duration, examination_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'examination updated successfully'}
