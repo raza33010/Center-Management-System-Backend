@@ -1183,6 +1183,13 @@ class StudentForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     batch_id = IntegerField('Batch ID', [validators.InputRequired()])
     class_id = IntegerField('Class ID', [validators.InputRequired()])
+    group_id = IntegerField('Group ID', [validators.InputRequired()])
+    percentage = IntegerField('Percentage', [validators.InputRequired()])
+    description = StringField('Description', [validators.InputRequired()])
+    ref_name = StringField('Reference Name', [validators.InputRequired()])
+    ref_phone_no =  StringField('Reference Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+    last_class = StringField('Last Class', [validators.InputRequired()])
+    last_grade = StringField('Last Grade', [validators.InputRequired()])
     status = IntegerField('Status', [validators.InputRequired(),
                                      validators.AnyOf([0, 1], 'Must be 0 or 1')])
     created_at = DateTimeField('Created At', default=datetime.utcnow)
@@ -1199,25 +1206,36 @@ def add_student():
         father_phone = form.father_phone.data
         email = form.email.data
         address = form.address.data
-        bform = request.files['bform']        
+        bform = request.files['bform']
+        marksheet = request.files['marksheet']        
         roll_no = form.roll_no.data
         center_id = form.center_id.data
         batch_id = form.batch_id.data
         class_id = form.class_id.data
+        group_id = form.group_id.data
+        percentage = form.percentage.data
+        description = form.description.data
+        ref_name = form.ref_name.data
+        ref_phone_no = form.ref_phone_no.data
+        last_class = form.last_class.data
+        last_grade = form.last_grade.data
         status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
 
         filename=image.filename
         filename1=bform.filename
+        filename2=marksheet.filename
         if filename != '' and filename1 != '':
             file_ext = os.path.splitext(filename)[1]
             file_ext1 = os.path.splitext(filename1)[1]
-            if (file_ext and file_ext1) not in app.config['UPLOAD_EXTENSIONS']:
+            file_ext2 = os.path.splitext(filename2)[1]
+            if (file_ext and file_ext1 and file_ext2) not in app.config['UPLOAD_EXTENSIONS']:
                 response = {'code':'this file extension is not allowed'}
                 return jsonify(response)
         image.save(f'uploads/image and bform/{image.filename}')
         bform.save(f'uploads/image and bform/{bform.filename}')
+        marksheet.save(f'uploads/{marksheet.filename}')
 
 
         cur = mysql.connection.cursor()
@@ -1227,8 +1245,10 @@ def add_student():
         result_1 = cur.fetchone()
         cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
         result_2 = cur.fetchone()  # Fetch a single row
-        if result and result_1 and result_2:
-            cur.execute("INSERT INTO student(image, name, phone, father_name, father_phone, email, address, bform, roll_no, center_id, batch_id, class_id, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (str(filename), name, phone, father_name, father_phone, email, address, str(filename1), roll_no, center_id, batch_id, class_id, status, created_at, updated_at))
+        cur.execute("SELECT * FROM 'group' WHERE id = %s", (group_id,))
+        result_3 = cur.fetchone()  # Fetch a single row
+        if result and result_1 and result_2 and result_3:
+            cur.execute("INSERT INTO student(image, name, phone, father_name, father_phone, email, address, bform, roll_no, center_id, batch_id, class_id, status, created_at, updated_at, group_id, description, ref_name, ref_phone_no, lasrt_class, last_grade, percentage, bform) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (str(filename), name, phone, father_name, father_phone, email, address, str(filename1), roll_no, center_id, batch_id, class_id, status, created_at, updated_at, group_id, description, ref_name, ref_phone_no, last_class, last_grade, percentage, str(filename2)))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'Student added successfully'}
@@ -1243,7 +1263,23 @@ def add_student():
 @app.route('/student/<int:student_id>', methods=['GET'])
 def get_student(student_id):
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM student WHERE id=%s", (student_id,))
+    cur.execute(f"""
+    SELECT 
+        student.*, 
+        class.name AS class_names,
+        batch.name AS batch_names,
+        `group`.name AS group_names
+    FROM 
+        student
+    INNER JOIN 
+        batch ON batch.id = student.batch_id 
+    INNER JOIN 
+        class ON class.id = student.class_id 
+    INNER JOIN 
+        `group` ON `group`.id = student.group_id 
+    WHERE 
+        student.id = {student_id};
+""")
     student = cur.fetchone()
     cur.close()
 
