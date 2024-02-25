@@ -714,7 +714,25 @@ def add_batch():
         return jsonify(response)
 
 
+@app.route('/batch_ids', methods=['GET'])
+def get_batch_ids():
+    cur = mysql.connection.cursor()
+    cur.execute(f"SELECT id,name FROM batch")
+    batch = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for batch in batch:
+        batch_dict = dict(zip(column_names, batch))
+        data_with_columns.append(batch_dict)
 
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
     
 @app.route('/batch/<int:batch_id>', methods=['GET'])
 def get_batch(batch_id):
@@ -1179,7 +1197,6 @@ class StudentForm(Form):
     father_phone = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
     email = StringField('Email', [validators.InputRequired(), validators.Email()])
     address = StringField('Address', [validators.InputRequired()])
-    roll_no = StringField('Roll No', [validators.InputRequired()])
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     batch_id = IntegerField('Batch ID', [validators.InputRequired()])
     class_id = IntegerField('Class ID', [validators.InputRequired()])
@@ -1208,7 +1225,6 @@ def add_student():
         address = form.address.data
         bform = request.files['bform']
         marksheet = request.files['marksheet']        
-        roll_no = form.roll_no.data
         center_id = form.center_id.data
         batch_id = form.batch_id.data
         class_id = form.class_id.data
@@ -1245,10 +1261,21 @@ def add_student():
         result_1 = cur.fetchone()
         cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
         result_2 = cur.fetchone()  # Fetch a single row
-        cur.execute("SELECT * FROM 'group' WHERE id = %s", (group_id,))
+        cur.execute("SELECT * FROM `group` WHERE id = %s", (group_id,))
         result_3 = cur.fetchone()  # Fetch a single row
         if result and result_1 and result_2 and result_3:
-            cur.execute("INSERT INTO student(image, name, phone, father_name, father_phone, email, address, bform, roll_no, center_id, batch_id, class_id, status, created_at, updated_at, group_id, description, ref_name, ref_phone_no, lasrt_class, last_grade, percentage, bform) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (str(filename), name, phone, father_name, father_phone, email, address, str(filename1), roll_no, center_id, batch_id, class_id, status, created_at, updated_at, group_id, description, ref_name, ref_phone_no, last_class, last_grade, percentage, str(filename2)))
+            cur.execute(f"""SELECT id
+FROM student
+ORDER BY id DESC
+LIMIT 1;
+""")
+            id = cur.fetchone()
+            id = str(id)
+            cur.execute(f"SELECT name FROM batch WHERE id = {batch_id}")
+            batch = cur.fetchone()
+            batch = str(batch)
+            roll_no = batch+'-'+id
+            cur.execute("INSERT INTO student(image, name, phone, father_name, father_phone, email, address, bform, roll_no, center_id, batch_id, class_id, status, created_at, updated_at, group_id, description, ref_name, ref_phone_no, last_class, last_grade, percentage, marksheet) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (str(filename), name, phone, father_name, father_phone, email, address, str(filename1), roll_no, center_id, batch_id, class_id, status, created_at, updated_at, group_id, description, ref_name, ref_phone_no, last_class, last_grade, percentage, str(filename2)))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'Student added successfully'}
@@ -1350,12 +1377,14 @@ def delete_student(id):
     if student: 
         image_path = student[1]
         bform_path = student[8]
+        marksheet_path = student[23]
         # delete the center from the database
         cur.execute("DELETE FROM student WHERE id= %s", (id,))
         mysql.connection.commit()
         # delete the center's logo file
         os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], image_path))
         os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], bform_path))
+        os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], marksheet_path))
         return jsonify({'message': f'student with id {id} deleted successfully'})
     else:
         return jsonify({'message': f'student with id {id} not found'})
@@ -1372,14 +1401,21 @@ def update_student(student_id):
         father_phone = form.father_phone.data
         email = form.email.data
         address = form.address.data
-        bform = request.files['bform']        
-        roll_no = form.roll_no.data
+        bform = request.files['bform']
+        marksheet = request.files['marksheet']        
         center_id = form.center_id.data
         batch_id = form.batch_id.data
         class_id = form.class_id.data
+        group_id = form.group_id.data
+        percentage = form.percentage.data
+        description = form.description.data
+        ref_name = form.ref_name.data
+        ref_phone_no = form.ref_phone_no.data
+        last_class = form.last_class.data
+        last_grade = form.last_grade.data
         status = form.status.data
         updated_at = form.updated_at.data
-
+        
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM student WHERE id=%s", (student_id,))
         role = cur.fetchone()
@@ -1391,21 +1427,27 @@ def update_student(student_id):
         else:
             image_path = role[1]
             bform_path = role[8]
+            marksheet_path = role[23]
             if image_path and os.path.exists(os.path.join(app.config['UPLOADED_DIRECTORY'], image_path)):
                 os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'],image_path))
             if bform_path and os.path.exists(os.path.join(app.config['UPLOADED_DIRECTORY'], bform_path)):
                 os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'],bform_path))
+            if marksheet_path and os.path.exists(os.path.join(app.config['UPLOADED_DIRECTORY'], marksheet_path)):
+                os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'],marksheet_path))            
             
             filename=image.filename
             filename1=bform.filename
-            if filename != '' and filename1 != '':
+            filename2=marksheet.filename
+            if filename != '' and filename1 != '' and filename2 != '':
                 file_ext = os.path.splitext(filename)[1]
                 file_ext1 = os.path.splitext(filename1)[1]
-            if (file_ext and file_ext1) not in app.config['UPLOAD_EXTENSIONS']:
+                file_ext2 = os.path.splitext(filename2)[1]
+            if (file_ext and file_ext1 and file_ext2) not in app.config['UPLOAD_EXTENSIONS']:
                 response = {'code':'this file extension is not allowed'}
                 return jsonify(response)
             image.save(f'uploads/image and bform/{image.filename}')
             bform.save(f'uploads/image and bform/{bform.filename}')            
+            marksheet.save(f'uploads/{marksheet.filename}') 
             
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
@@ -1414,7 +1456,7 @@ def update_student(student_id):
             cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
             result_2 = cur.fetchone()  # Fetch a single row
             if result and result_1 and result_2:
-                cur.execute("UPDATE student SET image=%s, name=%s, phone=%s, father_name=%s, father_phone=%s, email=%s, address=%s, bform=%s, roll_no=%s, center_id=%s, batch_id=%s, class_id=%s, status=%s, updated_at=%s WHERE id=%s", (str(filename), name, phone, father_name, father_phone, email, address, str(filename1), roll_no, center_id, batch_id, class_id, status, updated_at, student_id))
+                cur.execute("UPDATE student SET image=%s, name=%s, phone=%s, father_name=%s, father_phone=%s, email=%s, address=%s, bform=%s, center_id=%s, batch_id=%s, class_id=%s, status=%s, updated_at=%s, group_id=%s, description=%s, ref_name=%s, ref_phone_no=%s, last_class=%s, last_grade=%s, percentage=%s, marksheet=%s WHERE id=%s", (str(filename), name, phone, father_name, father_phone, email, address, str(filename1), center_id, batch_id, class_id, status, updated_at, group_id, description, ref_name, ref_phone_no, last_class, last_grade, percentage, str(filename2), student_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'student updated successfully'}
@@ -3168,6 +3210,33 @@ WHERE expense.id ={expense_id};
     else:
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
+
+
+@app.route('/group_ids/<int:center_id>', methods=['GET'])
+def get_all_group_ids(center_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+            SELECT `group`.id, `group`.name, class.name AS class_names
+FROM `group`
+INNER JOIN class ON class.id= `group`.class_id 
+WHERE `group`.center_id ={center_id};
+
+        """)
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
 
 
 if __name__ == "__main__":
