@@ -3085,7 +3085,7 @@ def get_all_expense():
     cur = mysql.connection.cursor()
     if center_id == 0:
         cur.execute(f"""
-            SELECT expense.*, subjecdescriptionme AS subject_names,class.name AS class_names,user.name AS user_names
+            SELECT expense.*, subject.name AS subject_names,class.name AS class_names,user.name AS user_names
 FROM expense
 INNER JOIN subject ON subject.id=expense.subject_id 
 INNER JOIN class ON class.id=expense.class_id 
@@ -3206,6 +3206,176 @@ WHERE expense.id ={expense_id};
                 return jsonify(response)
             else:
                 response = {'code': '400', 'status': 'false', 'message': 'expense not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+
+# Group Apis #..............................................................
+class GroupForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    subject_id = StringField('Subject Id', [validators.InputRequired()])
+    batch_id =  IntegerField('Batch ID', [validators.InputRequired()])
+    class_id =IntegerField('class ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')],default = 1)
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+@app.route('/add_group', methods=['POST'])
+def add_group():
+    form = GroupForm(request.form)
+    print(status)
+    if form.validate():
+        center_id = form.center_id.data
+        subject_id = form.subject_id.data
+        batch_id = form.batch_id.data
+        class_id = form.class_id.data
+        name = form.name.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        print(name)
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        cur.execute("SELECT * FROM user WHERE id = %s", (subject_id,))
+        result_1 = cur.fetchone()
+        if result and result_1:
+            cur.execute(
+                "INSERT INTO `group`(center_id, subject_id, batch_id, class_id, name, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)",
+                (center_id, subject_id, batch_id, class_id, name, status, created_at, updated_at)
+            )
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'group added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+@app.route('/group/<int:group_id>', methods=['GET'])
+def get_group(group_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+        SELECT
+    d.*,
+    GROUP_CONCAT(u.name) AS user_names
+FROM `group` d
+JOIN user u ON FIND_IN_SET(u.id, d.subject_id) > 0
+WHERE d.id = {group_id}
+GROUP BY d.id ;
+
+    """)
+    group = cur.fetchone()
+    cur.close()
+
+    if group:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        group_dict = dict(zip(column_names, group))
+
+        response = {'code': '200', 'status': 'true', 'data': group_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'group not found'}
+        return jsonify(response)
+
+@app.route('/group', methods=['POST'])
+def get_all_group():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    cur = mysql.connection.cursor()
+    if center_id == 0:
+        cur.execute(f"""
+            SELECT `group`.*, user.name AS user_names
+FROM `group`
+INNER JOIN user ON user.id=`group`.subject_id 
+        """)
+    else:
+        cur.execute(f"""
+SELECT
+       `group`.*,
+        GROUP_CONCAT(s.name) AS subject_names,
+        u.name AS batch_names,
+        c.name AS class_names
+    FROM `group` 
+    JOIN subject s ON FIND_IN_SET(s.id, `group`.subject_id) > 0
+    JOIN class c ON c.id = `group`.class_id
+    JOIN batch u ON u.id =`group`.batch_id
+    GROUP BY `group`.id ;
+
+        """) 
+
+    group = cur.fetchall()
+    print(group)
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for subject in group:
+        user_dict = dict(zip(column_names, subject))
+        # Split the role_names into a list
+        user_dict['subject_names'] = user_dict['subject_names'].split(',')
+        data_with_columns.append(user_dict)
+
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+@app.route('/del_group/<int:id>', methods=['DELETE'])
+def delete_group(id):
+    cur = mysql.connection.cursor()
+    group = cur.execute("DELETE FROM `group` WHERE id= %s", (id,))
+    mysql.connection.commit()
+    if group:
+        return jsonify({'message': f'result with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'result with id {id} not found'})
+
+@app.route('/upd_group/<int:group_id>', methods=['PUT'])
+def update_group(group_id):
+    form = GroupForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        subject_id = form.subject_id.data
+        batch_id = form.batch_id.data
+        class_id = form.class_id.data
+        name = form.name.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM `group` WHERE id=%s", (group_id,))
+        group = cur.fetchone()
+        if not group:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'group not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            cur.execute("SELECT * FROM user WHERE id = %s", (subject_id,))
+            result_1 = cur.fetchone()
+            if result and result_1:
+                cur.execute(
+                    "UPDATE `group` SET center_id=%s, subject_id=%s, batch_id=%s, class_id=%s, name=%s, status=%s, updated_at=%s WHERE id=%s",
+                    (center_id, subject_id, batch_id, class_id, name, status, updated_at, group_id)
+                )
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'group updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'group not updated successfully'}
                 return jsonify(response)
     else:
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
