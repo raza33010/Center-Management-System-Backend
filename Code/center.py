@@ -714,10 +714,10 @@ def add_batch():
         return jsonify(response)
 
 
-@app.route('/batch_ids', methods=['GET'])
-def get_batch_ids():
+@app.route('/batch_ids/<int:center_id>', methods=['GET'])
+def get_batch_ids(center_id):
     cur = mysql.connection.cursor()
-    cur.execute(f"SELECT id,name FROM batch")
+    cur.execute(f"SELECT id,name FROM batch WHERE batch.center_id={center_id}")
     batch = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -3226,7 +3226,6 @@ class GroupForm(Form):
 @app.route('/add_group', methods=['POST'])
 def add_group():
     form = GroupForm(request.form)
-    print(status)
     if form.validate():
         center_id = form.center_id.data
         subject_id = form.subject_id.data
@@ -3262,15 +3261,19 @@ def add_group():
 def get_group(group_id):
     cur = mysql.connection.cursor()
     cur.execute(f"""
-        SELECT
-    d.*,
-    GROUP_CONCAT(u.name) AS user_names
-FROM `group` d
-JOIN user u ON FIND_IN_SET(u.id, d.subject_id) > 0
-WHERE d.id = {group_id}
-GROUP BY d.id ;
+SELECT
+       `group`.*,
+        GROUP_CONCAT(s.name) AS subject_names,
+        u.name AS batch_names,
+        c.name AS class_names
+    FROM `group` 
+    JOIN subject s ON FIND_IN_SET(s.id, `group`.subject_id) > 0
+    JOIN class c ON c.id = `group`.class_id
+    JOIN batch u ON u.id =`group`.batch_id
+    WHERE `group`.id = {group_id}
+    GROUP BY `group`.id ;
 
-    """)
+        """)
     group = cur.fetchone()
     cur.close()
 
@@ -3307,6 +3310,7 @@ SELECT
     JOIN subject s ON FIND_IN_SET(s.id, `group`.subject_id) > 0
     JOIN class c ON c.id = `group`.class_id
     JOIN batch u ON u.id =`group`.batch_id
+    WHERE `group`.center_id = {center_id}
     GROUP BY `group`.id ;
 
         """) 
