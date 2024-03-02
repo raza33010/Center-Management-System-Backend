@@ -3413,5 +3413,533 @@ WHERE `group`.center_id ={center_id};
     return jsonify(response)
 
 
+# Absent Form
+class AbsForm(Form):
+    name = StringField('Name', [validators.InputRequired()])
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow())
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow())
+    phone_no = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+    address = StringField('Address', [validators.InputRequired()])
+
+
+@app.route('/add_Aform', methods=['POST'])
+def add_Aform():
+    form = AbsForm(request.form)
+    if form.validate():
+        name = form.name.data
+        logo = request.files['logo']
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        address = form.address.data
+        phone_no = form.phone_no.data
+        filename=logo.filename
+        if filename != '':
+            file_ext = os.path.splitext(filename)[1]
+            if file_ext not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'E_400'}
+                return jsonify(response)
+        logo.save(f'uploads/{logo.filename}')
+        cur = mysql.connection.cursor()
+        cur.execute("INSERT INTO Aform(name, logo, status, created_at, updated_at, address, phone_no) VALUES( %s, %s, %s, %s, %s, %s, %s)", (name, str(filename), status, created_at, updated_at, address, phone_no))
+        mysql.connection.commit()
+        cur.close()
+
+        response = {'code': '200', 'status': 'true', 'message': 'Aform added successfully'}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+        
+@app.route('/Aform/<int:Aform_id>', methods=['GET'])
+def get_Aform(Aform_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM Aform WHERE id=%s", (Aform_id,))
+    Aform = cur.fetchone()
+    cur.close()
+
+    if Aform:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        Aform_dict = dict(zip(column_names, Aform))
+
+        response = {'code': '200', 'status': 'true', 'data': Aform_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Aform not found'}
+        return jsonify(response)
+
+@app.route('/Aform_id', methods=['GET'])
+def get_all_Aforms_id():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM Aform")
+    Aforms = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for Aform in Aforms:
+        Aform_dict = dict(zip(column_names, Aform))
+        data_with_columns.append(Aform_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+@app.route('/Aform', methods=['GET'])
+def get_all_Aforms():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM Aform")
+    Aforms = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for Aform in Aforms:
+        Aform_dict = dict(zip(column_names, Aform))
+        data_with_columns.append(Aform_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+    # cur = mysql.connection.cursor()
+    # cur.execute("SELECT * FROM Aform")
+    # Aforms = cur.fetchall()
+    # cur.close()
+    
+    # print(Aforms)
+
+    # response = {'code': '200', 'status': 'true', 'data': Aforms}
+    # return jsonify(response)
+
+@app.route('/del_Aform/<int:id>', methods=['DELETE'])
+def delete_Aform(id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM Aform WHERE id=%s", (id,))
+    Aform = cur.fetchone()
+    if Aform:
+        logo_path = Aform[2]
+        # delete the Aform from the database
+        cur.execute("DELETE FROM Aform WHERE id= %s", (id,))
+        mysql.connection.commit()
+        # delete the Aform's logo file
+        os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+        return jsonify({'message': f'Aform with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'Aform with id {id} not found'})
+
+
+@app.route('/upd_Aform/<int:Aform_id>', methods=['PATCH'])
+def update_Aform(Aform_id): 
+    form = AbsForm(request.form)
+    if form.validate():
+        name = form.name.data
+        logo = request.files['logo']
+        status = form.status.data
+        updated_at = form.updated_at.data
+        address = form.address.data
+        phone_no = form.phone_no.data                
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM Aform WHERE id=%s", (Aform_id,))
+        Aform = cur.fetchone()
+
+        if not Aform:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'Aform not found'}
+            return jsonify(final_response)
+        else:
+            logo_path = Aform[2]
+            if logo_path and os.path.exists(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path)):
+                os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+            filename = logo.filename
+            if filename != '':
+                file_ext = os.path.splitext(filename)[1]
+            if file_ext not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'E_400'}
+                return jsonify(response)
+            logo.save(f'uploads/{filename}')
+
+
+        cur.execute("UPDATE Aform SET name=%s, logo=%s, status=%s, updated_at=%s, address=%s, phone_no=%s, WHERE id=%s", (name, filename, status, updated_at, address, phone_no, Aform_id))
+        mysql.connection.commit()
+        cur.close()
+        
+        response = {'code': '200', 'status': 'true', 'message': 'Aform updated successfully'}
+        return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Late Form
+class LaForm(Form):
+    center_id = IntegerField('Center Id', [validators.InputRequired()])
+    student_id = IntegerField('Student Id', [validators.InputRequired()])
+    user_id = IntegerField('User Id', [validators.InputRequired()])
+    time = StringField('time')
+    reason = StringField('Reason', [validators.InputRequired()])
+    date = DateField('Date')
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow())
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow())
+
+@app.route('/student/add_lform', methods=['POST'])
+def add_lform():
+    form = LaForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        student_id = form.student_id.data
+        time = form.time.data
+        reason = form.reason.data
+        date = form.date.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("INSERT INTO lform( center_id, student_id, user_id, time, reason, date, status, created_at, updated_at) VALUES( %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, student_id, user_id, time, reason, date, status, created_at, updated_at))
+        mysql.connection.commit()
+        cur.close()
+
+        response = {'code': '200', 'status': 'true', 'message': 'lform added successfully'}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+        
+@app.route('/student/lform/<int:lform_id>', methods=['GET'])
+def get_lform(lform_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+            SELECT lform.*,user.name AS user_names,student.name AS student_names
+FROM lform
+INNER JOIN student ON student.id=lform.student_id
+INNER JOIN user ON user.id=lform.user_id  
+WHERE lform.id ={lform_id};
+
+        """)
+    lform = cur.fetchone()
+    cur.close()
+
+    if lform:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        lform_dict = dict(zip(column_names, lform))
+
+        response = {'code': '200', 'status': 'true', 'data': lform_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'lform not found'}
+        return jsonify(response)
+
+@app.route('/lform_id', methods=['GET'])
+def get_all_lforms_id():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM lform")
+    lforms = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for lform in lforms:
+        lform_dict = dict(zip(column_names, lform))
+        data_with_columns.append(lform_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+@app.route('/student/lform', methods=['POST'])
+def get_all_lforms():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    student_id = data.get('student_id')
+    print(student_id)
+    print(center_id)
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+            SELECT lform.*,user.name AS user_names
+FROM lform
+INNER JOIN user ON user.id=lform.user_id 
+WHERE lform.center_id ={center_id} AND lform.student_id ={student_id};
+
+        """)
+    lforms = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for lform in lforms:
+        lform_dict = dict(zip(column_names, lform))
+        data_with_columns.append(lform_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+    # cur = mysql.connection.cursor()
+    # cur.execute("SELECT * FROM lform")
+    # lforms = cur.fetchall()
+    # cur.close()
+    
+    # print(lforms)
+
+    # response = {'code': '200', 'status': 'true', 'data': lforms}
+    # return jsonify(response)
+
+@app.route('/student/del_lform/<int:id>', methods=['DELETE'])
+def delete_lform(id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM lform WHERE id=%s", (id,))
+    lform = cur.fetchone()
+    if lform:
+        logo_path = lform[2]
+        # delete the lform from the database
+        cur.execute("DELETE FROM lform WHERE id= %s", (id,))
+        mysql.connection.commit()
+        # delete the lform's logo file
+        os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+        return jsonify({'message': f'lform with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'lform with id {id} not found'})
+
+
+@app.route('/student/upd_lform/<int:lform_id>', methods=['PATCH'])
+def update_lform(lform_id): 
+    form = LaForm(request.form)
+    if form.validate():
+        name = form.name.data
+        logo = request.files['logo']
+        status = form.status.data
+        updated_at = form.updated_at.data
+        address = form.address.data
+        phone_no = form.phone_no.data                
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM lform WHERE id=%s", (lform_id,))
+        lform = cur.fetchone()
+
+        if not lform:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'lform not found'}
+            return jsonify(final_response)
+        else:
+            logo_path = lform[2]
+            if logo_path and os.path.exists(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path)):
+                os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+            filename = logo.filename
+            if filename != '':
+                file_ext = os.path.splitext(filename)[1]
+            if file_ext not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'E_400'}
+                return jsonify(response)
+            logo.save(f'uploads/{filename}')
+
+
+        cur.execute("UPDATE lform SET name=%s, logo=%s, status=%s, updated_at=%s, address=%s, phone_no=%s, WHERE id=%s", (name, filename, status, updated_at, address, phone_no, lform_id))
+        mysql.connection.commit()
+        cur.close()
+        
+        response = {'code': '200', 'status': 'true', 'message': 'lform updated successfully'}
+        return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Half Leave Form
+class HLForm(Form):
+    name = StringField('Name', [validators.InputRequired()])
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow())
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow())
+    phone_no = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+    address = StringField('Address', [validators.InputRequired()])
+
+
+@app.route('/add_HLform', methods=['POST'])
+def add_HLform():
+    form = HLForm(request.form)
+    if form.validate():
+        name = form.name.data
+        logo = request.files['logo']
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        address = form.address.data
+        phone_no = form.phone_no.data
+        filename=logo.filename
+        if filename != '':
+            file_ext = os.path.splitext(filename)[1]
+            if file_ext not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'E_400'}
+                return jsonify(response)
+        logo.save(f'uploads/{logo.filename}')
+        cur = mysql.connection.cursor()
+        cur.execute("INSERT INTO HLform(name, logo, status, created_at, updated_at, address, phone_no) VALUES( %s, %s, %s, %s, %s, %s, %s)", (name, str(filename), status, created_at, updated_at, address, phone_no))
+        mysql.connection.commit()
+        cur.close()
+
+        response = {'code': '200', 'status': 'true', 'message': 'HLform added successfully'}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+        
+@app.route('/HLform/<int:HLform_id>', methods=['GET'])
+def get_HLform(HLform_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM HLform WHERE id=%s", (HLform_id,))
+    HLform = cur.fetchone()
+    cur.close()
+
+    if HLform:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        HLform_dict = dict(zip(column_names, HLform))
+
+        response = {'code': '200', 'status': 'true', 'data': HLform_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'HLform not found'}
+        return jsonify(response)
+
+@app.route('/HLform_id', methods=['GET'])
+def get_all_HLforms_id():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM HLform")
+    HLforms = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for HLform in HLforms:
+        HLform_dict = dict(zip(column_names, HLform))
+        data_with_columns.append(HLform_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+@app.route('/HLform', methods=['GET'])
+def get_all_HLforms():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM HLform")
+    HLforms = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for HLform in HLforms:
+        HLform_dict = dict(zip(column_names, HLform))
+        data_with_columns.append(HLform_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+    # cur = mysql.connection.cursor()
+    # cur.execute("SELECT * FROM HLform")
+    # HLforms = cur.fetchall()
+    # cur.close()
+    
+    # print(HLforms)
+
+    # response = {'code': '200', 'status': 'true', 'data': HLforms}
+    # return jsonify(response)
+
+@app.route('/del_HLform/<int:id>', methods=['DELETE'])
+def delete_HLform(id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM HLform WHERE id=%s", (id,))
+    HLform = cur.fetchone()
+    if HLform:
+        logo_path = HLform[2]
+        # delete the HLform from the database
+        cur.execute("DELETE FROM HLform WHERE id= %s", (id,))
+        mysql.connection.commit()
+        # delete the HLform's logo file
+        os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+        return jsonify({'message': f'HLform with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'HLform with id {id} not found'})
+
+
+@app.route('/upd_HLform/<int:HLform_id>', methods=['PATCH'])
+def update_HLform(HLform_id): 
+    form = HLForm(request.form)
+    if form.validate():
+        name = form.name.data
+        logo = request.files['logo']
+        status = form.status.data
+        updated_at = form.updated_at.data
+        address = form.address.data
+        phone_no = form.phone_no.data                
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM HLform WHERE id=%s", (HLform_id,))
+        HLform = cur.fetchone()
+
+        if not HLform:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'HLform not found'}
+            return jsonify(final_response)
+        else:
+            logo_path = HLform[2]
+            if logo_path and os.path.exists(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path)):
+                os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+            filename = logo.filename
+            if filename != '':
+                file_ext = os.path.splitext(filename)[1]
+            if file_ext not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'E_400'}
+                return jsonify(response)
+            logo.save(f'uploads/{filename}')
+
+
+        cur.execute("UPDATE HLform SET name=%s, logo=%s, status=%s, updated_at=%s, address=%s, phone_no=%s, WHERE id=%s", (name, filename, status, updated_at, address, phone_no, HLform_id))
+        mysql.connection.commit()
+        cur.close()
+        
+        response = {'code': '200', 'status': 'true', 'message': 'HLform updated successfully'}
+        return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
 if __name__ == "__main__":
     app.run(debug=True)
