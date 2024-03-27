@@ -3993,5 +3993,557 @@ def update_Leave_Form(Leave_Form_id):
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
 
+# Late Form
+class TTForm(Form):
+    center_id = IntegerField('Center Id', [validators.InputRequired()])
+    class_id = IntegerField('Class Id', [validators.InputRequired()])
+    user_id = IntegerField('User Id', [validators.InputRequired()])
+    subject_id = IntegerField('Subject Id', [validators.InputRequired()])
+    day = StringField('time')
+    start_slot_time = StringField('Slot Time', [validators.InputRequired()])
+    end_slot_time = StringField('Slot Time', [validators.InputRequired()])
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow())
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow())
+
+@app.route('/add_timetable', methods=['POST'])
+def add_timetable():
+    form = TTForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        subject_id = form.subject_id.data
+        class_id = form.class_id.data
+        day = form.day.data
+        start_slot_time = form.start_slot_time.data
+        end_slot_time = form.end_slot_time.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("INSERT INTO `timetable`( center_id, subject_id, user_id, class_id, day, start_slot_time, status, created_at, updated_at, end_slot_time) VALUES( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, subject_id, user_id, class_id, day, start_slot_time, status, created_at, updated_at, end_slot_time))
+        mysql.connection.commit()
+        cur.close()
+
+        response = {'code': '200', 'status': 'true', 'message': 'timetable added successfully'}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+        
+@app.route('/timetable/<int:timetable_id>', methods=['GET'])
+def get_timetable(timetable_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+            SELECT `timetable`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
+FROM `timetable`
+INNER JOIN user ON user.id=`timetable`.user_id
+INNER JOIN class ON class.id=`timetable`.class_id
+INNER JOIN subject ON subject.id=`timetable`.subject_id 
+WHERE `timetable`.id ={timetable_id};
+
+        """)
+    timetable = cur.fetchone()
+    cur.close()
+
+    if timetable:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        timetable_dict = dict(zip(column_names, timetable))
+
+        response = {'code': '200', 'status': 'true', 'data': timetable_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'timetable not found'}
+        return jsonify(response)
+
+@app.route('/timetable_id', methods=['GET'])
+def get_all_timetables_id():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM `timetable`")
+    timetables = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for timetable in timetables:
+        timetable_dict = dict(zip(column_names, timetable))
+        data_with_columns.append(timetable_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+@app.route('/timetable', methods=['POST'])
+def get_all_timetables():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    print(center_id)
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+            SELECT `timetable`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
+FROM `timetable`
+INNER JOIN user ON user.id=`timetable`.user_id
+INNER JOIN class ON class.id=`timetable`.class_id
+INNER JOIN subject ON subject.id=`timetable`.subject_id 
+WHERE `timetable`.center_id ={center_id};
+
+        """)
+    timetables = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for timetable in timetables:
+        timetable_dict = dict(zip(column_names, timetable))
+        data_with_columns.append(timetable_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+    # cur = mysql.connection.cursor()
+    # cur.execute("SELECT * FROM timetable")
+    # timetables = cur.fetchall()
+    # cur.close()
+    
+    # print(timetables)
+
+    # response = {'code': '200', 'status': 'true', 'data': timetables}
+    # return jsonify(response)
+
+@app.route('/del_timetable/<int:id>', methods=['DELETE'])
+def delete_timetable(id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM `timetable` WHERE id=%s", (id,))
+    timetable = cur.fetchone()
+    if timetable:
+        logo_path = timetable[2]
+        # delete the timetable from the database
+        cur.execute("DELETE FROM `timetable` WHERE id= %s", (id,))
+        mysql.connection.commit()
+        # delete the timetable's logo file
+        os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+        return jsonify({'message': f'timetable with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'timetable with id {id} not found'})
+
+
+@app.route('/upd_timetable/<int:timetable_id>', methods=['PUT'])
+def update_timetable(timetable_id): 
+    form = TTForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        subject_id = form.subject_id.data
+        class_id = form.class_id.data
+        day = form.day.data
+        start_slot_time = form.start_slot_time.data
+        end_slot_time = form.end_slot_time.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM `timetable` WHERE id=%s", (timetable_id,))
+        timetable = cur.fetchone()
+
+        if not timetable:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'timetable not found'}
+            return jsonify(final_response)
+        else:
+
+            cur.execute("UPDATE `timetable` SET center_id=%s, subject_id=%s, status=%s, updated_at=%s, user_id=%s, class_id=%s, start_slot_time=%s, end_slot_time=%s, day=%s  WHERE id=%s", (center_id, subject_id, status, updated_at, user_id, class_id, start_slot_time, end_slot_time, day, timetable_id))
+            mysql.connection.commit()
+            cur.close()
+            
+            response = {'code': '200', 'status': 'true', 'message': 'timetable updated successfully'}
+            return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Teacher attendance Form
+class TeacherAttendanceForm(Form):
+    center_id = IntegerField('Center Id', [validators.InputRequired()])
+    class_id = IntegerField('Class Id', [validators.InputRequired()])
+    user_id = IntegerField('User Id', [validators.InputRequired()])
+    subject_id = IntegerField('Subject Id', [validators.InputRequired()])
+    day = StringField('time')
+    start_slot_time = StringField('Slot Time', [validators.InputRequired()])
+    end_slot_time = StringField('Slot Time', [validators.InputRequired()])
+    teacher_status = StringField('Class Id', [validators.InputRequired()])
+    user_replacement_id = IntegerField('User Id', [validators.InputRequired()])
+    subject_replacement_id = IntegerField('Subject Id', [validators.InputRequired()])
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow())
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow())
+
+@app.route('/add_teacher_attendance', methods=['POST'])
+def add_teacher_attendance():
+    form = TeacherAttendanceForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        subject_id = form.subject_id.data
+        class_id = form.class_id.data
+        day = form.day.data
+        start_slot_time = form.start_slot_time.data
+        end_slot_time = form.end_slot_time.data
+        day = form.day.data
+        start_slot_time = form.start_slot_time.data
+        end_slot_time = form.end_slot_time.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("INSERT INTO `teacher_attendance`( center_id, subject_id, user_id, class_id, day, start_slot_time, status, created_at, updated_at, end_slot_time) VALUES( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, subject_id, user_id, class_id, day, start_slot_time, status, created_at, updated_at, end_slot_time))
+        mysql.connection.commit()
+        cur.close()
+
+        response = {'code': '200', 'status': 'true', 'message': 'teacher_attendance added successfully'}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+        
+@app.route('/teacher_attendance/<int:teacher_attendance_id>', methods=['GET'])
+def get_teacher_attendance(teacher_attendance_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+            SELECT `teacher_attendance`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
+FROM `teacher_attendance`
+INNER JOIN user ON user.id=`teacher_attendance`.user_id
+INNER JOIN class ON class.id=`teacher_attendance`.class_id
+INNER JOIN subject ON subject.id=`teacher_attendance`.subject_id 
+WHERE `teacher_attendance`.id ={teacher_attendance_id};
+
+        """)
+    teacher_attendance = cur.fetchone()
+    cur.close()
+
+    if teacher_attendance:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        teacher_attendance_dict = dict(zip(column_names, teacher_attendance))
+
+        response = {'code': '200', 'status': 'true', 'data': teacher_attendance_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'teacher_attendance not found'}
+        return jsonify(response)
+
+@app.route('/teacher_attendance_id', methods=['GET'])
+def get_all_teacher_attendances_id():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM `teacher_attendance`")
+    teacher_attendances = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for teacher_attendance in teacher_attendances:
+        teacher_attendance_dict = dict(zip(column_names, teacher_attendance))
+        data_with_columns.append(teacher_attendance_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+@app.route('/teacher_attendance', methods=['POST'])
+def get_all_teacher_attendances():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    print(center_id)
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+            SELECT `teacher_attendance`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
+FROM `teacher_attendance`
+INNER JOIN user ON user.id=`teacher_attendance`.user_id
+INNER JOIN class ON class.id=`teacher_attendance`.class_id
+INNER JOIN subject ON subject.id=`teacher_attendance`.subject_id 
+WHERE `teacher_attendance`.center_id ={center_id};
+
+        """)
+    teacher_attendances = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for teacher_attendance in teacher_attendances:
+        teacher_attendance_dict = dict(zip(column_names, teacher_attendance))
+        data_with_columns.append(teacher_attendance_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+    # cur = mysql.connection.cursor()
+    # cur.execute("SELECT * FROM teacher_attendance")
+    # teacher_attendances = cur.fetchall()
+    # cur.close()
+    
+    # print(teacher_attendances)
+
+    # response = {'code': '200', 'status': 'true', 'data': teacher_attendances}
+    # return jsonify(response)
+
+@app.route('/del_teacher_attendance/<int:id>', methods=['DELETE'])
+def delete_teacher_attendance(id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM `teacher_attendance` WHERE id=%s", (id,))
+    teacher_attendance = cur.fetchone()
+    if teacher_attendance:
+        logo_path = teacher_attendance[2]
+        # delete the teacher_attendance from the database
+        cur.execute("DELETE FROM `teacher_attendance` WHERE id= %s", (id,))
+        mysql.connection.commit()
+        # delete the teacher_attendance's logo file
+        os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+        return jsonify({'message': f'teacher_attendance with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'teacher_attendance with id {id} not found'})
+
+
+@app.route('/upd_teacher_attendance/<int:teacher_attendance_id>', methods=['PUT'])
+def update_teacher_attendance(teacher_attendance_id): 
+    form = TeacherAttendanceForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        subject_id = form.subject_id.data
+        class_id = form.class_id.data
+        day = form.day.data
+        start_slot_time = form.start_slot_time.data
+        end_slot_time = form.end_slot_time.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM `teacher_attendance` WHERE id=%s", (teacher_attendance_id,))
+        teacher_attendance = cur.fetchone()
+
+        if not teacher_attendance:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'teacher_attendance not found'}
+            return jsonify(final_response)
+        else:
+
+            cur.execute("UPDATE `teacher_attendance` SET center_id=%s, subject_id=%s, status=%s, updated_at=%s, user_id=%s, class_id=%s, start_slot_time=%s, end_slot_time=%s, day=%s  WHERE id=%s", (center_id, subject_id, status, updated_at, user_id, class_id, start_slot_time, end_slot_time, day, teacher_attendance_id))
+            mysql.connection.commit()
+            cur.close()
+            
+            response = {'code': '200', 'status': 'true', 'message': 'teacher_attendance updated successfully'}
+            return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Teacher Apis #..............................................................
+class TeacherForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    user_id = IntegerField('Subjects ID', [validators.InputRequired()])
+    class_id = IntegerField('Subjects ID', [validators.InputRequired()])
+    subject_id = IntegerField('Subjects ID', [validators.InputRequired()])
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+@app.route('/add_teacher', methods=['POST'])
+def add_teacher():
+    form = TeacherForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        class_id = form.class_id.data        
+        subject_id = form.subject_id.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute(f"SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()  # Fetch a single row
+
+        if result:
+            cur.execute("INSERT INTO teacher(center_id, user_id, class_id, subject_id, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s)", (center_id, user_id, class_id, subject_id, status, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'teacher added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'teacher addition failed'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+    
+@app.route('/teacher/<int:teacher_id>', methods=['GET'])
+def get_teacher(teacher_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+            SELECT `teacher`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
+FROM `teacher`
+INNER JOIN user ON user.id=`teacher`.user_id
+INNER JOIN class ON class.id=`teacher`.class_id
+INNER JOIN subject ON subject.id=`teacher`.subject_id 
+WHERE `teacher`.id ={teacher_id};
+
+        """)
+    subject = cur.fetchone()
+    cur.close()
+
+    if subject:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        subject_dict = dict(zip(column_names, subject))
+
+        response = {'code': '200', 'status': 'true', 'data': subject_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'user not found'}
+        return jsonify(response)
+
+
+@app.route('/teacher_ids/<int:center_id>', methods=['GET'])
+def get_all_teacher_ids(center_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM teacher WHERE center_id=%s",(center_id,))
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/teacher', methods=['POST'])
+def get_all_teacher():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    cur = mysql.connection.cursor()
+    if center_id == '0':
+        cur.execute(f"""
+                SELECT `teacher`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
+    FROM `teacher`
+    INNER JOIN user ON user.id=`teacher`.user_id
+    INNER JOIN class ON class.id=`teacher`.class_id
+    INNER JOIN subject ON subject.id=`teacher`.subject_id;
+
+            """)        
+    else: 
+        cur.execute(f"""
+                SELECT `teacher`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
+    FROM `teacher`
+    INNER JOIN user ON user.id=`teacher`.user_id
+    INNER JOIN class ON class.id=`teacher`.class_id
+    INNER JOIN subject ON subject.id=`teacher`.subject_id 
+    WHERE `teacher`.center_id ={center_id};
+
+            """)
+    subjects = cur.fetchall()
+    print(subjects)
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for subject in subjects:
+        user_dict = dict(zip(column_names, subject))
+        # Split the role_names into a list
+        user_dict['subject_names'] = user_dict['subject_names'].split(',')
+        data_with_columns.append(user_dict)
+
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+@app.route('/del_teacher/<int:id>', methods=['DELETE'])
+def delete_teacher(id):
+    cur = mysql.connection.cursor()
+    uteacher = cur.execute(f"DELETE FROM teacher WHERE id={id}")
+    mysql.connection.commit()
+    cur.close()
+    if uteacher > 0:
+        final_response = {'code': '200', 'status': 'true', 'message': 'teacher found', 'data': uteacher}
+        return jsonify(final_response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'teacher not found', 'data': uteacher}
+        return jsonify(final_response)
+
+
+@app.route('/upd_teacher/<int:teacher_id>', methods=['PUT'])
+def update_teacher(teacher_id):
+    form = TeacherForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        class_id = form.class_id.data        
+        subject_id = form.subject_id.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM teacher WHERE id=%s", (teacher_id,))
+        uteacher = cur.fetchone()
+
+        if not uteacher:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'teacher not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute(f"SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()  # Fetch a single row
+
+            if result:
+                cur.execute("UPDATE teacher SET center_id=%s, user_id=%s, class_id=%s, subject_id=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, user_id, class_id, subject_id, status, updated_at, teacher_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'teacher updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'teacher not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
