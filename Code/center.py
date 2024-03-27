@@ -4429,6 +4429,34 @@ WHERE `teacher`.id ={teacher_id};
         response = {'code': '400', 'status': 'false', 'message': 'user not found'}
         return jsonify(response)
 
+@app.route('/teacher/user_class_ids/subjects', methods=['GET'])
+def get_teacher_by_user_id_class_id():
+    cur = mysql.connection.cursor()
+    user_id = request.args.get('user_id')
+    class_id = request.args.get('class_id')
+    cur.execute(f"""
+            SELECT `teacher`.*,subject.name AS subject_names
+FROM `teacher`
+INNER JOIN subject ON subject.id=`teacher`.subject_id 
+WHERE `teacher`.user_id ={user_id} AND `teacher`.class_id ={class_id};
+
+        """)
+    subject = cur.fetchone()
+    print(subject)
+    cur.close()
+
+    if subject:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        subject_dict = dict(zip(column_names, subject))
+
+        response = {'code': '200', 'status': 'true', 'data': subject_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'user not found', 'data': {'subject_id': '0', 'subject_names': 'No Subject'}}
+        return jsonify(response)
+
+
 
 @app.route('/teacher_ids/<int:center_id>', methods=['GET'])
 def get_all_teacher_ids(center_id):
