@@ -436,7 +436,7 @@ def add_user():
         result = cur.fetchone()  # Fetch a single row
 
         if result:
-            cur.execute("INSERT INTO user(center_id, name, role_id, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name, role_id, created_at, updated_at, email, password, phone_no))
+            cur.execute("INSERT INTO user(center_id, name, role_id, created_at, updated_at, email, password, phone_no) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)", (center_id, name.title(), role_id, created_at, updated_at, email, password, phone_no))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'user added successfully'}
@@ -4177,15 +4177,11 @@ def update_timetable(timetable_id):
 # Teacher attendance Form
 class TeacherAttendanceForm(Form):
     center_id = IntegerField('Center Id', [validators.InputRequired()])
-    class_id = IntegerField('Class Id', [validators.InputRequired()])
-    user_id = IntegerField('User Id', [validators.InputRequired()])
-    subject_id = IntegerField('Subject Id', [validators.InputRequired()])
-    day = StringField('time')
-    start_slot_time = StringField('Slot Time', [validators.InputRequired()])
-    end_slot_time = StringField('Slot Time', [validators.InputRequired()])
+    timetable_id = IntegerField('tiemtable Id', [validators.InputRequired()])
     teacher_status = StringField('Class Id', [validators.InputRequired()])
-    user_replacement_id = IntegerField('User Id', [validators.InputRequired()])
-    subject_replacement_id = IntegerField('Subject Id', [validators.InputRequired()])
+    date = StringField('Class Id')
+    user_rep_id = IntegerField('User Id', [validators.InputRequired()])
+    subject_rep_id = IntegerField('Subject Id', [validators.InputRequired()])
     status = IntegerField('Status', [
         validators.InputRequired(),
         validators.AnyOf([0, 1], 'Must be 0 or 1')
@@ -4198,20 +4194,16 @@ def add_teacher_attendance():
     form = TeacherAttendanceForm(request.form)
     if form.validate():
         center_id = form.center_id.data
-        user_id = form.user_id.data
-        subject_id = form.subject_id.data
-        class_id = form.class_id.data
-        day = form.day.data
-        start_slot_time = form.start_slot_time.data
-        end_slot_time = form.end_slot_time.data
-        day = form.day.data
-        start_slot_time = form.start_slot_time.data
-        end_slot_time = form.end_slot_time.data
+        timetable_id = form.timetable_id.data
+        teacher_status = form.teacher_status.data
+        user_rep_id = form.user_rep_id.data
+        date = form.date.data
+        subject_rep_id = form.subject_rep_id.data
         status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
         cur = mysql.connection.cursor()
-        cur.execute("INSERT INTO `teacher_attendance`( center_id, subject_id, user_id, class_id, day, start_slot_time, status, created_at, updated_at, end_slot_time) VALUES( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, subject_id, user_id, class_id, day, start_slot_time, status, created_at, updated_at, end_slot_time))
+        cur.execute("INSERT INTO `teacher_attendance` (center_id, timetable_id, teacher_status, user_rep_id, subject_rep_id, date, status, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, timetable_id, teacher_status, user_rep_id, subject_rep_id, date, status, created_at, updated_at))
         mysql.connection.commit()
         cur.close()
 
@@ -4225,12 +4217,35 @@ def add_teacher_attendance():
 def get_teacher_attendance(teacher_attendance_id):
     cur = mysql.connection.cursor()
     cur.execute(f"""
-            SELECT `teacher_attendance`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
-FROM `teacher_attendance`
-INNER JOIN user ON user.id=`teacher_attendance`.user_id
-INNER JOIN class ON class.id=`teacher_attendance`.class_id
-INNER JOIN subject ON subject.id=`teacher_attendance`.subject_id 
-WHERE `teacher_attendance`.id ={teacher_attendance_id};
+SELECT 
+    ta.*,
+    tt.*,
+    tt.user_id AS timetable_user_id,
+    u1.name AS timetable_user_name,
+    tt.subject_id,
+    s.name AS subject_name,
+    tt.class_id,
+    c.name AS class_name,
+    ta.user_rep_id,
+    u2.name AS user_rep_name,
+    ta.subject_rep_id,
+    u3.name AS subject_rep_name
+FROM 
+    teacher_attendance ta
+JOIN 
+    timetable tt ON ta.timetable_id = tt.id
+JOIN 
+    user u1 ON tt.user_id = u1.id
+JOIN 
+    subject s ON tt.subject_id = s.id
+JOIN 
+    class c ON tt.class_id = c.id
+JOIN 
+    user u2 ON ta.user_rep_id = u2.id
+JOIN 
+    subject u3 ON ta.subject_rep_id = u3.id
+WHERE 
+    ta.id = {teacher_attendance_id};
 
         """)
     teacher_attendance = cur.fetchone()
@@ -4276,15 +4291,39 @@ def get_all_teacher_attendances():
     print(center_id)
     cur = mysql.connection.cursor()
     cur.execute(f"""
-            SELECT `teacher_attendance`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
-FROM `teacher_attendance`
-INNER JOIN user ON user.id=`teacher_attendance`.user_id
-INNER JOIN class ON class.id=`teacher_attendance`.class_id
-INNER JOIN subject ON subject.id=`teacher_attendance`.subject_id 
-WHERE `teacher_attendance`.center_id ={center_id};
+SELECT 
+    ta.*,
+    tt.*,
+    tt.user_id AS timetable_user_id,
+    u1.name AS timetable_user_name,
+    tt.subject_id,
+    s.name AS subject_name,
+    tt.class_id,
+    c.name AS class_name,
+    ta.user_rep_id,
+    u2.name AS user_rep_name,
+    ta.subject_rep_id,
+    u3.name AS subject_rep_name
+FROM 
+    teacher_attendance ta
+JOIN 
+    timetable tt ON ta.timetable_id = tt.id
+JOIN 
+    user u1 ON tt.user_id = u1.id
+JOIN 
+    subject s ON tt.subject_id = s.id
+JOIN 
+    class c ON tt.class_id = c.id
+JOIN 
+    user u2 ON ta.user_rep_id = u2.id
+JOIN 
+    subject u3 ON ta.subject_rep_id = u3.id
+WHERE 
+    ta.center_id = {center_id};
 
         """)
     teacher_attendances = cur.fetchall()
+    print(teacher_attendances)
     column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
     cur.close()
 
@@ -4333,12 +4372,11 @@ def update_teacher_attendance(teacher_attendance_id):
     form = TeacherAttendanceForm(request.form)
     if form.validate():
         center_id = form.center_id.data
-        user_id = form.user_id.data
-        subject_id = form.subject_id.data
-        class_id = form.class_id.data
-        day = form.day.data
-        start_slot_time = form.start_slot_time.data
-        end_slot_time = form.end_slot_time.data
+        timetable_id = form.timetable_id.data
+        teacher_status = form.teacher_status.data
+        user_rep_id = form.user_rep_id.data
+        date = form.date.data
+        subject_rep_id = form.subject_rep_id.data
         status = form.status.data
         updated_at = form.updated_at.data
         cur = mysql.connection.cursor()
@@ -4351,7 +4389,7 @@ def update_teacher_attendance(teacher_attendance_id):
             return jsonify(final_response)
         else:
 
-            cur.execute("UPDATE `teacher_attendance` SET center_id=%s, subject_id=%s, status=%s, updated_at=%s, user_id=%s, class_id=%s, start_slot_time=%s, end_slot_time=%s, day=%s  WHERE id=%s", (center_id, subject_id, status, updated_at, user_id, class_id, start_slot_time, end_slot_time, day, teacher_attendance_id))
+            cur.execute("UPDATE `teacher_attendance` SET center_id=%s, timetable_id=%s, status=%s, updated_at=%s, teacher_status=%s, user_rep_id=%s, subject_rep_id=%s, date=%s, day=%s  WHERE id=%s", (center_id, timetable_id, status, updated_at, teacher_status, user_rep_id, subject_rep_id, date, day, teacher_attendance_id))
             mysql.connection.commit()
             cur.close()
             
