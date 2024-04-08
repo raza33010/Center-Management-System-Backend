@@ -1369,6 +1369,56 @@ INNER JOIN group ON group.id=student.group_id;
 
     return jsonify(response)
 
+@app.route('/student_awardlist', methods=['POST'])
+def get_all_student_awardlist():
+    cur = mysql.connection.cursor()
+    data = request.get_json()
+    center_id = data.get('center_id')
+    class_id = data.get('class_id')
+    if center_id == '0':
+        cur.execute(f"""
+            SELECT student.*, class.name AS class_names,batch.name AS batch_names,group.name AS group_names
+FROM student
+INNER JOIN batch ON batch.id=student.batch_id 
+INNER JOIN class ON class.id=student.class_id 
+INNER JOIN group ON group.id=student.group_id;
+
+        """)
+    else:
+        cur.execute(f"""
+    SELECT 
+        student.*, 
+        class.name AS class_names,
+        batch.name AS batch_names,
+        `group`.name AS group_names
+    FROM 
+        student
+    INNER JOIN 
+        batch ON batch.id = student.batch_id 
+    INNER JOIN 
+        class ON class.id = student.class_id 
+    INNER JOIN 
+        `group` ON `group`.id = student.group_id 
+    WHERE 
+        student.center_id = {center_id} AND student.class_id = {class_id};
+""")
+    students = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for student in students:
+        student_dict = dict(zip(column_names, student))
+        data_with_columns.append(student_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
 @app.route('/del_student/<int:id>', methods=['DELETE'])
 def delete_student(id):
     cur = mysql.connection.cursor()
@@ -4180,8 +4230,8 @@ class TeacherAttendanceForm(Form):
     timetable_id = IntegerField('tiemtable Id', [validators.InputRequired()])
     teacher_status = StringField('Class Id', [validators.InputRequired()])
     date = StringField('Class Id')
-    user_rep_id = IntegerField('User Id', [validators.InputRequired()])
-    subject_rep_id = IntegerField('Subject Id', [validators.InputRequired()])
+    user_rep_id = StringField('User Id', [validators.InputRequired()])
+    subject_rep_id = StringField('Subject Id', [validators.InputRequired()])
     status = IntegerField('Status', [
         validators.InputRequired(),
         validators.AnyOf([0, 1], 'Must be 0 or 1')
@@ -4389,7 +4439,7 @@ def update_teacher_attendance(teacher_attendance_id):
             return jsonify(final_response)
         else:
 
-            cur.execute("UPDATE `teacher_attendance` SET center_id=%s, timetable_id=%s, status=%s, updated_at=%s, teacher_status=%s, user_rep_id=%s, subject_rep_id=%s, date=%s, day=%s  WHERE id=%s", (center_id, timetable_id, status, updated_at, teacher_status, user_rep_id, subject_rep_id, date, day, teacher_attendance_id))
+            cur.execute("UPDATE `teacher_attendance` SET center_id=%s, timetable_id=%s, status=%s, updated_at=%s, teacher_status=%s, user_rep_id=%s, subject_rep_id=%s, date=%s WHERE id=%s", (center_id, timetable_id, status, updated_at, teacher_status, user_rep_id, subject_rep_id, date, teacher_attendance_id))
             mysql.connection.commit()
             cur.close()
             
