@@ -4660,6 +4660,229 @@ def update_teacher(teacher_id):
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
 
+# Awardlist Apis #..............................................................
+class AwardlistForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    examination_id = IntegerField('Name', [validators.InputRequired()])
+    user_id = IntegerField('Name', [validators.InputRequired()])
+    teacher_id = IntegerField('Name', [validators.InputRequired()])
+    class_id = IntegerField('Name', [validators.InputRequired()])
+    student_id = IntegerField('Name', [validators.InputRequired()])
+    subject_id = IntegerField('Subject ID', [validators.InputRequired()])
+    month = StringField('Month', [validators.InputRequired()])
+    remarks = StringField('Month', [validators.InputRequired()])
+    grade = StringField('Month', [validators.InputRequired()])
+    obtain_number = IntegerField('Subject ID', [validators.InputRequired()])
+    total_number = IntegerField('Subject ID', [validators.InputRequired()])
+    percentage = DecimalField('Subject ID', [validators.InputRequired()])
+    status = IntegerField('Status', 
+                      [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')],
+                      default=1)
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+
+@app.route('/add_awardlist', methods=['POST'])
+def add_awardlist():
+    form = AwardlistForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        class_id = form.class_id.data
+        subject_id = form.subject_id.data
+        student_id = form.student_id.data
+        month = form.month.data
+        examination_id = form.examination_id.data
+        teacher_id = form.teacher_id.data
+        remarks = form.remarks.data
+        user_id = form.user_id.data
+        grade = form.grade.data
+        obtain_number = form.obtain_number.data
+        total_number = form.total_number.data
+        percentage = form.percentage.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
+        result_1 = cur.fetchone()
+        cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
+        result_2 = cur.fetchone()
+        cur.execute("SELECT * FROM student WHERE id = %s", (student_id,))
+        result_3 = cur.fetchone()
+        cur.execute("SELECT * FROM examination WHERE id = %s", (examination_id,))
+        result_4 = cur.fetchone()
+        cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
+        result_5 = cur.fetchone()
+        cur.execute("SELECT * FROM teacher WHERE id = %s", (teacher_id,))
+        result_6 = cur.fetchone()        
+        if result and result_1 and result_2 and result_3 and result_4 and result_5 and result_6:
+            cur.execute("INSERT INTO results(center_id, class_id, subject_id, examination_id, month, teacher_id, student_id, user_id, remarks, grade, obtain_number, total_number, percentage, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, class_id, subject_id, examination_id, month, teacher_id, student_id, user_id, remarks, grade, obtain_number, total_number, percentage, status, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'awardlist added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+    
+@app.route('/awardlist/<int:awardlist_id>', methods=['GET'])
+def get_awardlist(awardlist_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+             SELECT results.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names,student.name AS student_names ,teacher.name AS teacher_names
+FROM results
+INNER JOIN user ON user.id=results.user_id
+INNER JOIN class ON class.id=results.class_id
+INNER JOIN subject ON subject.id=results.subject_id 
+INNER JOIN student ON student.id=results.student_id
+INNER JOIN teacher ON teacher.id=results.teacher_id
+WHERE results.id ={awardlist_id};
+        """)
+    Exam = cur.fetchone()
+    cur.close()
+
+    if Exam:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        Exam_dict = dict(zip(column_names, Exam))
+
+        response = {'code': '200', 'status': 'true', 'data': Exam_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'awardlist not found'}
+        return jsonify(response)
+
+# @app.route('/awardlist', methods=['POST'])
+# def get_all_awardlist():
+#     data = request.get_json()
+#     center_id = data.get('center_id')
+#     cur = mysql.connection.cursor()
+#     if center_id == 0:
+#         cur.execute( """
+# SELECT
+#         e.*,
+#         GROUP_CONCAT(s.name) AS subject_names,
+#         GROUP_CONCAT(u.name) AS user_names,
+#         GROUP_CONCAT(c.name) AS class_names
+#     FROM awardlist e
+#     JOIN subject s ON s.id = e.subject_id
+#     JOIN class c ON c.id = e.subject_id
+#     JOIN user u ON u.id = e.user_id
+#     GROUP BY e.id ;
+# """)
+#     else:
+#         abbas =(f"""
+#             SELECT awardlist.*, subject.name AS subject_names,class.name AS class_names,user.name AS user_names
+# FROM awardlist
+# INNER JOIN subject ON subject.id=awardlist.subject_id 
+# INNER JOIN class ON class.id=awardlist.class_id 
+# INNER JOIN user ON user.id=awardlist.user_id 
+# WHERE awardlist.center_id ='1';
+
+#         """) 
+#         print(abbas)
+#         cur.execute(f"""
+#             SELECT awardlist.*, subject.name AS subject_names,class.name AS class_names,user.name AS user_names
+# FROM awardlist
+# INNER JOIN subject ON subject.id=awardlist.subject_id 
+# INNER JOIN class ON class.id=awardlist.class_id 
+# INNER JOIN user ON user.id=awardlist.user_id 
+# WHERE awardlist.center_id ='1';
+
+#         """) 
+
+#     awardlists = cur.fetchall()
+#     print(awardlists)
+#     column_names = [desc[0] for desc in cur.description]
+#     cur.close()
+#     data_with_columns = []
+#     for awardlist in awardlists:
+#         account_dict = dict(zip(column_names, awardlist))
+#         data_with_columns.append(account_dict)
+
+#     response = {
+#         "code": "200",
+#         "data": data_with_columns,
+#         "status": "true"
+#     }
+#     # print(response)
+#     return jsonify(response)
+
+# @app.route('/del_awardlist/<int:id>', methods=['DELETE'])
+# def delete_awardlist(id):
+#     cur = mysql.connection.cursor()
+#     cur.execute("DELETE FROM awardlist WHERE id= %s", (id,))
+#     student = cur.fetchone()
+#     mysql.connection.commit()
+#     cur.close()
+#     if student:
+#         return jsonify({'message': f'awardlist with id {id} not found'})
+#     else:
+#         return jsonify({'message': f'awardlist with id {id} deleted successfully'})
+
+
+@app.route('/upd_awardlist/<int:awardlist_id>', methods=['PUT'])
+def update_awardlist(awardlist_id):
+    form = AwardlistForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        class_id = form.class_id.data
+        subject_id = form.subject_id.data
+        student_id = form.student_id.data
+        month = form.month.data
+        examination_id = form.examination_id.data
+        teacher_id = form.teacher_id.data
+        remarks = form.remarks.data
+        user_id = form.user_id.data
+        grade = form.grade.data
+        obtain_number = form.obtain_number.data
+        total_number = form.total_number.data
+        percentage = form.percentage.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM awardlist WHERE id=%s", (awardlist_id,))
+        role = cur.fetchone()
+        print(role)
+        if not role:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'awardlist not found'}
+            return jsonify(final_response)
+        else:  
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
+            result_1 = cur.fetchone()
+            cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
+            result_2 = cur.fetchone()
+            cur.execute("SELECT * FROM student WHERE id = %s", (student_id,))
+            result_3 = cur.fetchone()
+            cur.execute("SELECT * FROM examination WHERE id = %s", (examination_id,))
+            result_4 = cur.fetchone()
+            cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
+            result_5 = cur.fetchone()
+            cur.execute("SELECT * FROM teacher WHERE id = %s", (teacher_id,))
+            result_6 = cur.fetchone()        
+            if result and result_1 and result_2 and result_3 and result_4 and result_5 and result_6:
+                cur.execute("UPDATE results SET center_id=%s, class_id=%s, subject_id=%s, type=%s, month=%s, date=%s, total_marks=%s, user_id=%s, schedule_start_time=%s, schedule_end_time=%s, start_time=%s, end_time=%s, checking_status=%s, status=%s, updated_at=%s, duration=%s WHERE id=%s", (center_id, class_id, subject_id, type, month, date, total_marks, user_id, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, updated_at, duration, awardlist_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'awardlist updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'awardlist not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
