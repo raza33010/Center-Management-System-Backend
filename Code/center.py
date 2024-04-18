@@ -4510,6 +4510,7 @@ WHERE `teacher`.id ={teacher_id};
         column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
 
         subject_dict = dict(zip(column_names, subject))
+        print(subject_dict)
 
         response = {'code': '200', 'status': 'true', 'data': subject_dict}
         return jsonify(response)
@@ -4665,16 +4666,8 @@ class AwardlistForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     examination_id = IntegerField('Name', [validators.InputRequired()])
     user_id = IntegerField('Name', [validators.InputRequired()])
-    teacher_id = IntegerField('Name', [validators.InputRequired()])
-    class_id = IntegerField('Name', [validators.InputRequired()])
     student_id = IntegerField('Name', [validators.InputRequired()])
-    subject_id = IntegerField('Subject ID', [validators.InputRequired()])
-    month = StringField('Month', [validators.InputRequired()])
-    remarks = StringField('Month', [validators.InputRequired()])
-    grade = StringField('Month', [validators.InputRequired()])
-    obtain_number = IntegerField('Subject ID', [validators.InputRequired()])
-    total_number = IntegerField('Subject ID', [validators.InputRequired()])
-    percentage = DecimalField('Subject ID', [validators.InputRequired()])
+    obtain_number = IntegerField('Name', [validators.InputRequired()])
     status = IntegerField('Status', 
                       [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')],
                       default=1)
@@ -4687,38 +4680,57 @@ def add_awardlist():
     form = AwardlistForm(request.form)
     if form.validate():
         center_id = form.center_id.data
-        class_id = form.class_id.data
-        subject_id = form.subject_id.data
         student_id = form.student_id.data
-        month = form.month.data
         examination_id = form.examination_id.data
-        teacher_id = form.teacher_id.data
-        remarks = form.remarks.data
         user_id = form.user_id.data
-        grade = form.grade.data
         obtain_number = form.obtain_number.data
-        total_number = form.total_number.data
-        percentage = form.percentage.data
         status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()
-        cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
-        result_1 = cur.fetchone()
-        cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
-        result_2 = cur.fetchone()
         cur.execute("SELECT * FROM student WHERE id = %s", (student_id,))
         result_3 = cur.fetchone()
         cur.execute("SELECT * FROM examination WHERE id = %s", (examination_id,))
         result_4 = cur.fetchone()
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        subject_dict = dict(zip(column_names, result_4))
+        print(subject_dict)
         cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
-        result_5 = cur.fetchone()
-        cur.execute("SELECT * FROM teacher WHERE id = %s", (teacher_id,))
-        result_6 = cur.fetchone()        
-        if result and result_1 and result_2 and result_3 and result_4 and result_5 and result_6:
-            cur.execute("INSERT INTO results(center_id, class_id, subject_id, examination_id, month, teacher_id, student_id, user_id, remarks, grade, obtain_number, total_number, percentage, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, class_id, subject_id, examination_id, month, teacher_id, student_id, user_id, remarks, grade, obtain_number, total_number, percentage, status, created_at, updated_at))
+        result_5 = cur.fetchone()        
+        if result and result_3 and result_4 and result_5:
+            total_marks = int(subject_dict['total_marks'])
+            percentage = (int(obtain_number)/total_marks)*100
+            print(int(percentage))
+            print(total_marks)
+            if percentage >= 90:
+                remarks = 'Marvelous'
+                grade = 'A+'
+            elif percentage >= 80:
+                remarks = 'Excellent'
+                grade = 'A+'
+            elif percentage >= 70:
+                remarks = 'Very Good'
+                grade = 'A'
+            elif percentage >= 60:
+                remarks = 'Fair'
+                grade = 'B'
+            elif percentage >= 50:
+                remarks = 'Average'
+                grade = 'C'
+            else:
+                remarks = 'Need Improvement'
+                grade = 'D'        
+            cur.execute("SELECT user_id FROM `teacher` WHERE class_id = %s AND subject_id = %s", (subject_dict['class_id'],subject_dict['subject_id'],))
+            teacher_id = cur.fetchone()
+            print('teacher_id',teacher_id)
+            print('remarks',remarks)
+            print('grade',grade) 
+            print('percentage',percentage)   
+            print('month',subject_dict['month'])                    
+            cur.execute("INSERT INTO results(center_id, class_id, subject_id, examination_id, month, teacher_id, student_id, user_id, remarks, grade, number, total, percentage, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, subject_dict['class_id'], subject_dict['subject_id'], examination_id, subject_dict['month'], teacher_id, student_id, user_id, remarks, grade, obtain_number, subject_dict['total_marks'], percentage, status, created_at, updated_at))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'awardlist added successfully'}
@@ -4731,18 +4743,20 @@ def add_awardlist():
         return jsonify(response)
 
     
-@app.route('/awardlist/<int:awardlist_id>', methods=['GET'])
-def get_awardlist(awardlist_id):
+@app.route('/awardlist_for_checking', methods=['POST'])
+def get_awardlist():
+    data = request.get_json()
+    student_id = data.get('student_id')
+    examination_id = data.get('examination_id')
     cur = mysql.connection.cursor()
     cur.execute(f"""
-             SELECT results.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names,student.name AS student_names ,teacher.name AS teacher_names
+             SELECT results.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names,student.name AS student_names
 FROM results
 INNER JOIN user ON user.id=results.user_id
 INNER JOIN class ON class.id=results.class_id
 INNER JOIN subject ON subject.id=results.subject_id 
 INNER JOIN student ON student.id=results.student_id
-INNER JOIN teacher ON teacher.id=results.teacher_id
-WHERE results.id ={awardlist_id};
+WHERE results.examination_id ={examination_id} AND results.student_id ={student_id} ;
         """)
     Exam = cur.fetchone()
     cur.close()
@@ -4826,29 +4840,20 @@ WHERE results.id ={awardlist_id};
 #     else:
 #         return jsonify({'message': f'awardlist with id {id} deleted successfully'})
 
-
 @app.route('/upd_awardlist/<int:awardlist_id>', methods=['PUT'])
 def update_awardlist(awardlist_id):
     form = AwardlistForm(request.form)
     if form.validate():
         center_id = form.center_id.data
-        class_id = form.class_id.data
-        subject_id = form.subject_id.data
         student_id = form.student_id.data
-        month = form.month.data
         examination_id = form.examination_id.data
-        teacher_id = form.teacher_id.data
-        remarks = form.remarks.data
         user_id = form.user_id.data
-        grade = form.grade.data
         obtain_number = form.obtain_number.data
-        total_number = form.total_number.data
-        percentage = form.percentage.data
         status = form.status.data
         updated_at = form.updated_at.data
 
         cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM awardlist WHERE id=%s", (awardlist_id,))
+        cur.execute("SELECT * FROM results WHERE id=%s", (awardlist_id,))
         role = cur.fetchone()
         print(role)
         if not role:
@@ -4858,20 +4863,47 @@ def update_awardlist(awardlist_id):
         else:  
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
-            cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
-            result_1 = cur.fetchone()
-            cur.execute("SELECT * FROM class WHERE id = %s", (class_id,))
-            result_2 = cur.fetchone()
             cur.execute("SELECT * FROM student WHERE id = %s", (student_id,))
             result_3 = cur.fetchone()
             cur.execute("SELECT * FROM examination WHERE id = %s", (examination_id,))
             result_4 = cur.fetchone()
+            column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+            subject_dict = dict(zip(column_names, result_4))
+            print(subject_dict)
             cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
-            result_5 = cur.fetchone()
-            cur.execute("SELECT * FROM teacher WHERE id = %s", (teacher_id,))
-            result_6 = cur.fetchone()        
-            if result and result_1 and result_2 and result_3 and result_4 and result_5 and result_6:
-                cur.execute("UPDATE results SET center_id=%s, class_id=%s, subject_id=%s, type=%s, month=%s, date=%s, total_marks=%s, user_id=%s, schedule_start_time=%s, schedule_end_time=%s, start_time=%s, end_time=%s, checking_status=%s, status=%s, updated_at=%s, duration=%s WHERE id=%s", (center_id, class_id, subject_id, type, month, date, total_marks, user_id, schedule_start_time, schedule_end_time, start_time, end_time, checking_status, status, updated_at, duration, awardlist_id))
+            result_5 = cur.fetchone()        
+            if result and result_3 and result_4 and result_5:
+                total_marks = int(subject_dict['total_marks'])
+                percentage = (int(obtain_number)/total_marks)*100
+                print(int(percentage))
+                print(total_marks)
+                if percentage >= 90:
+                    remarks = 'Marvelous'
+                    grade = 'A+'
+                elif percentage >= 80:
+                    remarks = 'Excellent'
+                    grade = 'A+'
+                elif percentage >= 70:
+                    remarks = 'Very Good'
+                    grade = 'A'
+                elif percentage >= 60:
+                    remarks = 'Fair'
+                    grade = 'B'
+                elif percentage >= 50:
+                    remarks = 'Average'
+                    grade = 'C'
+                else:
+                    remarks = 'Need Improvement'
+                    grade = 'D'        
+                cur.execute("SELECT user_id FROM `teacher` WHERE class_id = %s AND subject_id = %s", (subject_dict['class_id'],subject_dict['subject_id'],))
+                teacher_id = cur.fetchone()
+                print('teacher_id',teacher_id)
+                print('remarks',remarks)
+                print('grade',grade) 
+                print('percentage',percentage)   
+                print('month',subject_dict['month'])                    
+                cur.execute("UPDATE results SET number=%s, percentage=%s, remarks=%s, grade=%s, updated_at=%s WHERE id=%s", (obtain_number, percentage, remarks, grade, updated_at, awardlist_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'awardlist updated successfully'}
