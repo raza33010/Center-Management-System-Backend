@@ -2643,7 +2643,7 @@ def add_cchapter():
         cur.execute("SELECT * FROM subject WHERE id = %s", (subject_id,))
         result_1 = cur.fetchone()
         if result and result_1:
-            cur.execute("INSERT INTO cchapter(center_id, subject_id, name, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, subject_id, name, status, created_at, updated_at))
+            cur.execute("INSERT INTO cchapter(center_id, subject_id, name, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, subject_id, name.title(), status, created_at, updated_at))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'cchapter added successfully'}
@@ -2658,39 +2658,66 @@ def add_cchapter():
 @app.route('/cchapter/<int:cchapter_id>', methods=['GET'])
 def get_cchapter(cchapter_id):
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM cchapter WHERE id=%s", (cchapter_id,))
-    Cchapter = cur.fetchone()
+    cur.execute(f"""
+            SELECT cchapter.*, subject.name AS subject_names
+FROM cchapter
+INNER JOIN subject ON subject.id=cchapter.subject_id 
+WHERE cchapter.id ={cchapter_id} ;
+
+        """)
+    Exam = cur.fetchone()
     cur.close()
 
-    if Cchapter:
+    if Exam:
         column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
 
-        Cchapter_dict = dict(zip(column_names, Cchapter))
+        Exam_dict = dict(zip(column_names, Exam))
 
-        response = {'code': '200', 'status': 'true', 'data': Cchapter_dict}
+        response = {'code': '200', 'status': 'true', 'data': Exam_dict}
         return jsonify(response)
     else:
-        response = {'code': '400', 'status': 'false', 'message': 'cchapter not found'}
+        response = {'code': '400', 'status': 'false', 'message': 'examination not found'}
         return jsonify(response)
 
-@app.route('/cchapter', methods=['GET'])
+@app.route('/cchapter', methods=['POST'])
 def get_all_cchapter():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    subject_id = data.get('subject_id')    
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM cchapter")
-    Cchapters = cur.fetchall()
+    if center_id == 0:
+        cur.execute(f"""
+            SELECT cchapter.*, subject.name AS subject_names,class.name AS class_names,user.name AS user_names
+FROM cchapter
+INNER JOIN subject ON subject.id=cchapter.subject_id 
+INNER JOIN class ON class.id=cchapter.class_id 
+INNER JOIN user ON user.id=cchapter.user_id ;
+
+        """)
+    else:
+        cur.execute(f"""
+            SELECT cchapter.*, subject.name AS subject_names
+FROM cchapter
+INNER JOIN subject ON subject.id=cchapter.subject_id 
+WHERE cchapter.center_id ={center_id} AND cchapter.subject_id ={subject_id} ;
+
+        """) 
+
+    cchapters = cur.fetchall()
+    print(cchapters)
     column_names = [desc[0] for desc in cur.description]
     cur.close()
     data_with_columns = []
-    for Cchapter in Cchapters:
-        cchapter_dict = dict(zip(column_names, Cchapter))
-        data_with_columns.append(cchapter_dict)
+    for cchapter in cchapters:
+        account_dict = dict(zip(column_names, cchapter))
+        data_with_columns.append(account_dict)
 
     response = {
         "code": "200",
         "data": data_with_columns,
         "status": "true"
     }
-
+    # print(response)
     return jsonify(response)
 
 @app.route('/del_cchapter/<int:id>', methods=['DELETE'])
