@@ -1889,7 +1889,7 @@ def update_result(result_id):
 class URoleForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     name = StringField('Name', [validators.InputRequired()])
-    screen = StringField('Screen', [validators.InputRequired()])
+    screen_id = StringField('Screen', [validators.InputRequired()])
     status = IntegerField('Status', [
         validators.InputRequired(),
         validators.AnyOf([0, 1], 'Must be 0 or 1')
@@ -1903,7 +1903,7 @@ def add_role():
     if form.validate():
         center_id = form.center_id.data
         name = form.name.data
-        screen = form.screen.data
+        screen_id = form.screen_id.data
         status = form.status.data
         created_at = form.created_at.data
         updated_at = form.updated_at.data
@@ -1912,7 +1912,7 @@ def add_role():
         result = cur.fetchone()  # Fetch a single row
 
         if result:
-            cur.execute("INSERT INTO u_role(center_id, name, screen, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, name, screen, status, created_at, updated_at))
+            cur.execute("INSERT INTO u_role(center_id, name, screen_id, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s)", (center_id, name, screen_id, status, created_at, updated_at))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'user role added successfully'}
@@ -1928,16 +1928,25 @@ def add_role():
 @app.route('/role/<int:role_id>', methods=['GET'])
 def get_role(role_id):
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM u_role WHERE id=%s", (role_id,))
-    Urole = cur.fetchone()
+    cur.execute(f"""
+        SELECT
+    c.*,
+    GROUP_CONCAT(s.name) AS screen_names
+FROM u_role c
+JOIN rscreen s ON FIND_IN_SET(s.id, c.screen_id) > 0
+WHERE c.id = {role_id}
+GROUP BY c.id ;
+
+    """)
+    subject = cur.fetchone()
     cur.close()
 
-    if Urole:
+    if subject:
         column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
 
-        Urole_dict = dict(zip(column_names, Urole))
+        subject_dict = dict(zip(column_names, subject))
 
-        response = {'code': '200', 'status': 'true', 'data': Urole_dict}
+        response = {'code': '200', 'status': 'true', 'data': subject_dict}
         return jsonify(response)
     else:
         response = {'code': '400', 'status': 'false', 'message': 'user not found'}
@@ -1946,14 +1955,26 @@ def get_role(role_id):
 @app.route('/role', methods=['GET'])
 def get_all_roles():
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM u_role")
-    Uroles = cur.fetchall()
+    cur.execute(f"""
+            SELECT
+        c.*,
+        GROUP_CONCAT(s.name) AS screen_names
+    FROM u_role c
+    JOIN rscreen s ON FIND_IN_SET(s.id, c.screen_id) > 0
+    GROUP BY c.id ;
+
+        """)
+    group = cur.fetchall()
+    print(group)
     column_names = [desc[0] for desc in cur.description]
     cur.close()
     data_with_columns = []
-    for Urole in Uroles:
-        Urole_dict = dict(zip(column_names, Urole))
-        data_with_columns.append(Urole_dict)
+    for subject in group:
+        user_dict = dict(zip(column_names, subject))
+        # Split the role_names into a list
+        user_dict['screen_names'] = user_dict['screen_names'].split(',')
+        data_with_columns.append(user_dict)
+
 
     response = {
         "code": "200",
@@ -2023,7 +2044,7 @@ def update_role(role_id):
     if form.validate():
         center_id = form.center_id.data
         name = form.name.data
-        screen = form.screen.data
+        screen_id = form.screen_id.data
         status = form.status.data
         updated_at = form.updated_at.data
         cur = mysql.connection.cursor()
@@ -2039,7 +2060,7 @@ def update_role(role_id):
             result = cur.fetchone()  # Fetch a single row
 
             if result:
-                cur.execute("UPDATE u_role SET center_id=%s, name=%s, screen=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, screen, status, updated_at, role_id))
+                cur.execute("UPDATE u_role SET center_id=%s, name=%s, screen_id=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, screen_id, status, updated_at, role_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'user role updated successfully'}
@@ -2229,7 +2250,7 @@ def add_rscreen():
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()
         if result:
-            cur.execute("INSERT INTO rscreen(center_id, name, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s)", (center_id, name, status, created_at, updated_at))
+            cur.execute("INSERT INTO rscreen(center_id, name, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s)", (center_id, name.title(), status, created_at, updated_at))
             mysql.connection.commit()
             cur.close()
             response = {'code': '200', 'status': 'true', 'message': 'rscreen added successfully'}
@@ -2241,6 +2262,25 @@ def add_rscreen():
         response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(response)
 
+@app.route('/rscreen_ids/<int:center_id>', methods=['GET'])
+def get_all_rscreen_ids(center_id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM rscreen WHERE center_id=%s",(center_id,))
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
 
 
     
@@ -2262,10 +2302,21 @@ def get_rscreen(rscreen_id):
         response = {'code': '400', 'status': 'false', 'message': 'rscreen not found'}
         return jsonify(response)
 
-@app.route('/rscreen', methods=['GET'])
+@app.route('/rscreen', methods=['POST'])
 def get_all_rscreen():
+    data = request.get_json()
+    center_id = data.get('center_id')  
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM rscreen")
+    if center_id == 0:
+        cur.execute(f"""
+            SELECT * FROM rscreen;
+        """)
+    else:
+        cur.execute(f"""
+           SELECT * FROM rscreen
+WHERE center_id ={center_id};
+
+        """) 
     Rscreens = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -2315,7 +2366,7 @@ def update_rscreen(rscreen_id):
             cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
             result = cur.fetchone()
             if result:
-                cur.execute("UPDATE rscreen SET center_id=%s, name=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, status, updated_at, rscreen_id))
+                cur.execute("UPDATE rscreen SET center_id=%s, name=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name.title(), status, updated_at, rscreen_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'rscreen updated successfully'}
@@ -2763,6 +2814,163 @@ def update_cchapter(cchapter_id):
                 return jsonify(response)
             else:
                 response = {'code': '400', 'status': 'false', 'message': 'cchapter not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+    
+# Chapter Unit Apis #..............................................................
+class UnitForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    chapter_id = IntegerField('chapter_id', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    month = StringField('month', [validators.InputRequired()])
+    description = StringField('description', [validators.InputRequired()])
+    status = IntegerField('Status', [validators.InputRequired(), validators.AnyOf([0, 1], 'Must be 0 or 1')])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+@app.route('/add_unit', methods=['POST'])
+def add_unit():
+    form = UnitForm(request.form)
+    if form.validate():       
+        center_id = form.center_id.data
+        chapter_id = form.chapter_id.data
+        name = form.name.data
+        month = form.month.data
+        description = form.description.data
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        cur.execute("SELECT * FROM cchapter WHERE id = %s", (chapter_id,))
+        result_1 = cur.fetchone()
+        if result and result_1:
+            cur.execute("INSERT INTO ctopic(center_id, chapter_id, name, month, description, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)", (center_id, chapter_id, name.title(), month, description, status, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'unit added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+    
+@app.route('/unit/<int:unit_id>', methods=['GET'])
+def get_unit(unit_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+            SELECT ctopic.*, cchapter.name AS chapter_names
+FROM ctopic
+INNER JOIN cchapter ON cchapter.id=ctopic.chapter_id 
+WHERE ctopic.id ={unit_id} ;
+
+        """)
+    Exam = cur.fetchone()
+    cur.close()
+
+    if Exam:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        Exam_dict = dict(zip(column_names, Exam))
+
+        response = {'code': '200', 'status': 'true', 'data': Exam_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'examination not found'}
+        return jsonify(response)
+
+@app.route('/unit', methods=['POST'])
+def get_all_unit():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    chapter_id = data.get('chapter_id')    
+    cur = mysql.connection.cursor()
+    if center_id == 0:
+        cur.execute(f"""
+            SELECT ctopic.*, cchapter.name AS chapter_names,class.name AS class_names,user.name AS user_names
+FROM ctopic
+INNER JOIN cchapter ON cchapter.id=ctopic.chapter_id 
+INNER JOIN class ON class.id=ctopic.class_id 
+INNER JOIN user ON user.id=ctopic.user_id ;
+
+        """)
+    else:
+        cur.execute(f"""
+            SELECT ctopic.*, cchapter.name AS chapter_names
+FROM ctopic
+INNER JOIN cchapter ON cchapter.id=ctopic.chapter_id 
+WHERE ctopic.center_id ={center_id} AND ctopic.chapter_id ={chapter_id} ;
+
+        """) 
+
+    units = cur.fetchall()
+    print(units)
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for unit in units:
+        account_dict = dict(zip(column_names, unit))
+        data_with_columns.append(account_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+    # print(response)
+    return jsonify(response)
+
+@app.route('/del_unit/<int:id>', methods=['DELETE'])
+def delete_unit(id):
+    cur = mysql.connection.cursor()
+    unit = cur.execute("DELETE FROM ctopic WHERE id= %s", (id,))
+    mysql.connection.commit()
+
+    if unit:
+        return jsonify({'message': f'result with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'result with id {id} not found'})
+
+
+@app.route('/upd_unit/<int:unit_id>', methods=['PUT'])
+def update_unit(unit_id):
+    form = UnitForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        chapter_id = form.chapter_id.data
+        name = form.name.data
+        month = form.month.data
+        description = form.description.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM ctopic WHERE id=%s", (unit_id,))
+        unit = cur.fetchone()
+
+        if not unit:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'unit not found'}
+            return jsonify(final_response)
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            cur.execute("SELECT * FROM cchapter WHERE id = %s", (chapter_id,))
+            result_1 = cur.fetchone()
+            if result and result_1:
+                cur.execute("UPDATE ctopic SET center_id=%s, chapter_id=%s, name=%s, month=%s, description=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, chapter_id, name.title(), month, description, status, updated_at, unit_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'unit updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'unit not updated successfully'}
                 return jsonify(response)
     else:
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
