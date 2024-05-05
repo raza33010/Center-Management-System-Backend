@@ -56,8 +56,22 @@ def add_users():
     password = data.get('password')
 
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM user WHERE email = %s AND password = %s", (email, password))
+    cur.execute("""
+    SELECT user.*, 
+           (SELECT GROUP_CONCAT(rscreen.slug) 
+            FROM rscreen 
+            WHERE FIND_IN_SET(rscreen.id, u_role.screen_id) > 0) AS slugs
+    FROM user
+    JOIN u_role ON user.role_id = u_role.id
+    WHERE user.email = %s AND user.password = %s
+""", (email, password))
+
+
+
+
+
     user = cur.fetchone()
+    print(user)
     cur.close()
     print(user)
     if user:
@@ -1103,11 +1117,15 @@ def get_all_duty():
     data = request.get_json()
     center_id = data.get('center_id')
     cur = mysql.connection.cursor()
-    if center_id == 0:
+    if center_id == "0":
         cur.execute(f"""
-            SELECT duty.*, user.name AS user_names
-FROM duty
-INNER JOIN user ON user.id=duty.user_id 
+            SELECT
+        d.*,
+        GROUP_CONCAT(u.name) AS user_names
+    FROM duty d
+    JOIN user u ON FIND_IN_SET(u.id, d.user_id) > 0
+    GROUP BY d.id ;
+
         """)
     else:
         cur.execute(f"""
@@ -1377,13 +1395,22 @@ def get_all_student_awardlist():
     class_id = data.get('class_id')
     if center_id == '0':
         cur.execute(f"""
-            SELECT student.*, class.name AS class_names,batch.name AS batch_names,group.name AS group_names
-FROM student
-INNER JOIN batch ON batch.id=student.batch_id 
-INNER JOIN class ON class.id=student.class_id 
-INNER JOIN group ON group.id=student.group_id;
-
-        """)
+    SELECT 
+        student.*, 
+        class.name AS class_names,
+        batch.name AS batch_names,
+        `group`.name AS group_names
+    FROM 
+        student
+    INNER JOIN 
+        batch ON batch.id = student.batch_id 
+    INNER JOIN 
+        class ON class.id = student.class_id 
+    INNER JOIN 
+        `group` ON `group`.id = student.group_id 
+    WHERE 
+        student.class_id = {class_id};
+""")
     else:
         cur.execute(f"""
     SELECT 
@@ -1958,7 +1985,7 @@ def get_all_roles():
     cur.execute(f"""
             SELECT
         c.*,
-        GROUP_CONCAT(s.name) AS screen_names
+        GROUP_CONCAT(s.slug) AS screen_names
     FROM u_role c
     JOIN rscreen s ON FIND_IN_SET(s.id, c.screen_id) > 0
     GROUP BY c.id ;
@@ -3367,17 +3394,20 @@ WHERE expense.id ={expense_id};
 def get_all_expense():
     data = request.get_json()
     center_id = data.get('center_id')
+    role_id = data.get('role_id')
     cur = mysql.connection.cursor()
-    if center_id == 0:
+    if role_id == "0":
+        print("Ander hai")
         cur.execute(f"""
-            SELECT expense.*, subject.name AS subject_names,class.name AS class_names,user.name AS user_names
+            SELECT expense.*, account.name AS account_names,transaction.name AS transaction_names,user.name AS user_names, account.balance AS balances
 FROM expense
-INNER JOIN subject ON subject.id=expense.subject_id 
-INNER JOIN class ON class.id=expense.class_id 
-INNER JOIN user ON user.id=expense.user_id ;
+INNER JOIN transaction ON transaction.id=expense.transaction_id 
+INNER JOIN account ON account.id=expense.account_id 
+INNER JOIN user ON user.id=expense.user_id;
 
         """)
     else:
+        print("Bahar hai")
         cur.execute(f"""
             SELECT expense.*, account.name AS account_names,transaction.name AS transaction_names,user.name AS user_names, account.balance AS balances
 FROM expense
