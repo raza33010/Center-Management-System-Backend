@@ -1346,13 +1346,20 @@ def get_all_student():
     center_id = data.get('center_id')
     if center_id == '0':
         cur.execute(f"""
-            SELECT student.*, class.name AS class_names,batch.name AS batch_names,group.name AS group_names
-FROM student
-INNER JOIN batch ON batch.id=student.batch_id 
-INNER JOIN class ON class.id=student.class_id 
-INNER JOIN group ON group.id=student.group_id;
-
-        """)
+    SELECT 
+        student.*, 
+        class.name AS class_names,
+        batch.name AS batch_names,
+        `group`.name AS group_names
+    FROM 
+        student
+    INNER JOIN 
+        batch ON batch.id = student.batch_id 
+    INNER JOIN 
+        class ON class.id = student.class_id 
+    INNER JOIN 
+        `group` ON `group`.id = student.group_id ;
+""")
     else:
         cur.execute(f"""
     SELECT 
@@ -3608,11 +3615,19 @@ def get_all_group():
     data = request.get_json()
     center_id = data.get('center_id')
     cur = mysql.connection.cursor()
-    if center_id == 0:
+    if center_id == "0":
         cur.execute(f"""
-            SELECT `group`.*, user.name AS user_names
-FROM `group`
-INNER JOIN user ON user.id=`group`.subject_id 
+SELECT
+       `group`.*,
+        GROUP_CONCAT(s.name) AS subject_names,
+        u.name AS batch_names,
+        c.name AS class_names
+    FROM `group` 
+    JOIN subject s ON FIND_IN_SET(s.id, `group`.subject_id) > 0
+    JOIN class c ON c.id = `group`.class_id
+    JOIN batch u ON u.id =`group`.batch_id
+    GROUP BY `group`.id ;
+
         """)
     else:
         cur.execute(f"""
@@ -4018,7 +4033,16 @@ def get_all_lforms():
     print(student_id)
     print(center_id)
     cur = mysql.connection.cursor()
-    cur.execute(f"""
+    if center_id == "0":
+        cur.execute(f"""
+            SELECT lform.*,user.name AS user_names
+FROM lform
+INNER JOIN user ON user.id=lform.user_id 
+WHERE lform.student_id ={student_id};
+
+        """)
+    else:
+        cur.execute(f"""
             SELECT lform.*,user.name AS user_names
 FROM lform
 INNER JOIN user ON user.id=lform.user_id 
@@ -4208,7 +4232,16 @@ def get_all_Leave_Forms():
     print(student_id)
     print(center_id)
     cur = mysql.connection.cursor()
-    cur.execute(f"""
+    if center_id == "0":
+        cur.execute(f"""
+    SELECT `leave_form`.*, user.name AS user_names
+    FROM `leave_form`
+    INNER JOIN user ON user.id = `leave_form`.user_id 
+    WHERE`leave_form`.student_id = {student_id} 
+    AND `leave_form`.type = {abbas};
+""")
+    else:
+        cur.execute(f"""
     SELECT `leave_form`.*, user.name AS user_names
     FROM `leave_form`
     INNER JOIN user ON user.id = `leave_form`.user_id 
@@ -4403,7 +4436,16 @@ def get_all_timetables():
     center_id = data.get('center_id')
     print(center_id)
     cur = mysql.connection.cursor()
-    cur.execute(f"""
+    if center_id == "0":
+        cur.execute(f"""
+            SELECT `timetable`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
+FROM `timetable`
+INNER JOIN user ON user.id=`timetable`.user_id
+INNER JOIN class ON class.id=`timetable`.class_id
+INNER JOIN subject ON subject.id=`timetable`.subject_id;
+        """)
+    else:
+        cur.execute(f"""
             SELECT `timetable`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
 FROM `timetable`
 INNER JOIN user ON user.id=`timetable`.user_id
@@ -4605,7 +4647,39 @@ def get_all_teacher_attendances():
     center_id = data.get('center_id')
     print(center_id)
     cur = mysql.connection.cursor()
-    cur.execute(f"""
+    if center_id == "0":
+        cur.execute(f"""
+SELECT 
+    ta.*,
+    tt.*,
+    tt.user_id AS timetable_user_id,
+    u1.name AS timetable_user_name,
+    tt.subject_id,
+    s.name AS subject_name,
+    tt.class_id,
+    c.name AS class_name,
+    ta.user_rep_id,
+    u2.name AS user_rep_name,
+    ta.subject_rep_id,
+    u3.name AS subject_rep_name
+FROM 
+    teacher_attendance ta
+JOIN 
+    timetable tt ON ta.timetable_id = tt.id
+JOIN 
+    user u1 ON tt.user_id = u1.id
+JOIN 
+    subject s ON tt.subject_id = s.id
+JOIN 
+    class c ON tt.class_id = c.id
+JOIN 
+    user u2 ON ta.user_rep_id = u2.id
+JOIN 
+    subject u3 ON ta.subject_rep_id = u3.id;
+
+        """)
+    else:
+        cur.execute(f"""
 SELECT 
     ta.*,
     tt.*,
