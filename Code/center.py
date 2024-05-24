@@ -219,7 +219,7 @@ def delete_center(id):
         return jsonify({'message': f'Center with id {id} not found'})
 
 
-@app.route('/upd_center/<int:center_id>', methods=['PATCH'])
+@app.route('/upd_center/<int:center_id>', methods=['PUT'])
 def update_center(center_id): 
     form = CenterForm(request.form)
     if form.validate():
@@ -1339,6 +1339,31 @@ def get_student(student_id):
         response = {'code': '400', 'status': 'false', 'message': 'student not found'}
         return jsonify(response)
 
+@app.route('/student/class/<int:class_id>', methods=['GET'])
+def get_student_class(class_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+    SELECT 
+        * FROM student
+    WHERE 
+        class_id = {class_id};
+""")
+    students = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for student in students:
+        student_dict = dict(zip(column_names, student))
+        data_with_columns.append(student_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
 @app.route('/student', methods=['POST'])
 def get_all_student():
     cur = mysql.connection.cursor()
@@ -2341,7 +2366,7 @@ def get_all_rscreen():
     data = request.get_json()
     center_id = data.get('center_id')  
     cur = mysql.connection.cursor()
-    if center_id == 0:
+    if center_id == "0":
         cur.execute(f"""
             SELECT * FROM rscreen;
         """)
@@ -2521,8 +2546,10 @@ def get_examination(examination_id):
 def get_all_examination():
     data = request.get_json()
     center_id = data.get('center_id')
+    user_id = data.get('user_id')
+    role_id = data.get('role_id')
     cur = mysql.connection.cursor()
-    if center_id == 0:
+    if center_id == "0":
         cur.execute( """
 SELECT
         e.*,
@@ -2535,24 +2562,29 @@ SELECT
     JOIN user u ON u.id = e.user_id
     GROUP BY e.id ;
 """)
+    elif role_id == "4":
+        cur.execute(f"""
+          SELECT exam.*, sub.name AS subject_names, cls.name AS class_names, usr.name AS user_names
+FROM examination AS exam
+INNER JOIN subject AS sub ON sub.id = exam.subject_id 
+INNER JOIN class AS cls ON cls.id = exam.class_id 
+INNER JOIN user AS usr ON usr.id = exam.user_id 
+WHERE exam.center_id = {center_id}
+AND exam.class_id = (
+    SELECT class_id FROM teacher WHERE user_id = {user_id}
+)
+AND exam.subject_id = (
+    SELECT subject_id FROM teacher WHERE user_id = {user_id}    
+);
+        """)
     else:
-        abbas =(f"""
-            SELECT examination.*, subject.name AS subject_names,class.name AS class_names,user.name AS user_names
-FROM examination
-INNER JOIN subject ON subject.id=examination.subject_id 
-INNER JOIN class ON class.id=examination.class_id 
-INNER JOIN user ON user.id=examination.user_id 
-WHERE examination.center_id ='1';
-
-        """) 
-        print(abbas)
         cur.execute(f"""
             SELECT examination.*, subject.name AS subject_names,class.name AS class_names,user.name AS user_names
 FROM examination
 INNER JOIN subject ON subject.id=examination.subject_id 
 INNER JOIN class ON class.id=examination.class_id 
 INNER JOIN user ON user.id=examination.user_id 
-WHERE examination.center_id ='1';
+WHERE examination.center_id ={center_id};
 
         """) 
 
@@ -2770,13 +2802,12 @@ def get_all_cchapter():
     center_id = data.get('center_id')
     subject_id = data.get('subject_id')    
     cur = mysql.connection.cursor()
-    if center_id == 0:
+    if center_id == "0":
         cur.execute(f"""
-            SELECT cchapter.*, subject.name AS subject_names,class.name AS class_names,user.name AS user_names
+            SELECT cchapter.*, subject.name AS subject_names
 FROM cchapter
 INNER JOIN subject ON subject.id=cchapter.subject_id 
-INNER JOIN class ON class.id=cchapter.class_id 
-INNER JOIN user ON user.id=cchapter.user_id ;
+WHERE cchapter.subject_id ={subject_id} ;
 
         """)
     else:
@@ -2925,13 +2956,12 @@ def get_all_unit():
     center_id = data.get('center_id')
     chapter_id = data.get('chapter_id')    
     cur = mysql.connection.cursor()
-    if center_id == 0:
+    if center_id == "0":
         cur.execute(f"""
-            SELECT ctopic.*, cchapter.name AS chapter_names,class.name AS class_names,user.name AS user_names
+            SELECT ctopic.*, cchapter.name AS chapter_names
 FROM ctopic
 INNER JOIN cchapter ON cchapter.id=ctopic.chapter_id 
-INNER JOIN class ON class.id=ctopic.class_id 
-INNER JOIN user ON user.id=ctopic.user_id ;
+WHERE ctopic.chapter_id ={chapter_id} ;
 
         """)
     else:
@@ -3843,7 +3873,15 @@ def get_all_Aforms():
     print(student_id)
     print(center_id)
     cur = mysql.connection.cursor()
-    cur.execute(f"""
+    if center_id =="0":
+        cur.execute(f"""
+    SELECT `absent_form`.*, user.name AS user_names
+    FROM `absent_form`
+    INNER JOIN user ON user.id = `absent_form`.user_id 
+    WHERE `absent_form`.student_id = {student_id};
+""")
+    else:
+        cur.execute(f"""
     SELECT `absent_form`.*, user.name AS user_names
     FROM `absent_form`
     INNER JOIN user ON user.id = `absent_form`.user_id 
@@ -4434,6 +4472,8 @@ def get_all_timetables_id():
 def get_all_timetables():
     data = request.get_json()
     center_id = data.get('center_id')
+    role_id = data.get('role_id')
+    user_id = data.get('user_id')
     print(center_id)
     cur = mysql.connection.cursor()
     if center_id == "0":
@@ -4443,6 +4483,16 @@ FROM `timetable`
 INNER JOIN user ON user.id=`timetable`.user_id
 INNER JOIN class ON class.id=`timetable`.class_id
 INNER JOIN subject ON subject.id=`timetable`.subject_id;
+        """)
+    elif role_id == '4':
+        cur.execute(f"""
+            SELECT `timetable`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
+FROM `timetable`
+INNER JOIN user ON user.id=`timetable`.user_id
+INNER JOIN class ON class.id=`timetable`.class_id
+INNER JOIN subject ON subject.id=`timetable`.subject_id 
+WHERE `timetable`.center_id ={center_id} AND `timetable`.user_id ={user_id};
+
         """)
     else:
         cur.execute(f"""
@@ -5242,7 +5292,7 @@ def update_awardlist(awardlist_id):
                 print('grade',grade) 
                 print('percentage',percentage)   
                 print('month',subject_dict['month'])                    
-                cur.execute("UPDATE results SET number=%s, percentage=%s, remarks=%s, grade=%s, updated_at=%s WHERE id=%s", (obtain_number, percentage, remarks, grade, updated_at, awardlist_id))
+                cur.execute("UPDATE results SET number=%s, percentage=%s, remarks=%s, grade=%s, status=%s, updated_at=%s WHERE id=%s", (obtain_number, percentage, remarks, grade, updated_at, status, awardlist_id))
                 mysql.connection.commit()
                 cur.close()
                 response = {'code': '200', 'status': 'true', 'message': 'awardlist updated successfully'}
@@ -5250,6 +5300,240 @@ def update_awardlist(awardlist_id):
             else:
                 response = {'code': '400', 'status': 'false', 'message': 'awardlist not updated successfully'}
                 return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Absent Form
+class FeesForm(Form):
+    center_id = IntegerField('Center Id', [validators.InputRequired()])
+    student_id = IntegerField('Student Id', [validators.InputRequired()])
+    user_id = IntegerField('User Id', [validators.InputRequired()])
+    amount = StringField('Reason', [validators.InputRequired()])
+    amount_type = StringField('Reason', [validators.InputRequired()])
+    description = StringField('Reason', [validators.InputRequired()])
+    date = DateField('Date')
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow())
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow())
+
+
+@app.route('/student/add_feesform', methods=['POST'])
+def add_feesform():
+    form = FeesForm(request.form)
+    if form.validate():
+        logo = request.files['logo']
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        student_id = form.student_id.data
+        date = form.date.data
+        amount = form.amount.data
+        amount_type = form.amount_type.data
+        description = form.description.data        
+        status = form.status.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+        transaction_id = 2
+        filename=logo.filename
+        if filename != '':
+            file_ext = os.path.splitext(filename)[1]
+            if file_ext not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'E_400'}
+                return jsonify(response)
+        logo.save(f'uploads/{logo.filename}')
+        cur = mysql.connection.cursor()
+        cur.execute("INSERT INTO `fees_form`(center_id, student_id, user_id, amount, description, amount_type, date, slip_image, status, created_at, updated_at) VALUES( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (center_id, student_id, user_id, amount, description,  amount_type, date, str(filename), status, created_at, updated_at))
+        cur.execute("SELECT id FROM account WHERE center_id = %s", (center_id,))
+        account_id = int(cur.fetchone()[0])
+        cur.execute("SELECT balance FROM account WHERE id = %s", (account_id,))
+        expense = int(cur.fetchone()[0])
+        if transaction_id == 1:
+            balance = expense - int(amount)
+        else:
+            balance = expense + int(amount)
+        cur.execute("UPDATE account SET balance = %s WHERE id = %s", (balance, account_id))
+ 
+        cur.execute("INSERT INTO expense(user_id, account_id, transaction_id, center_id, description, balance, amount, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (user_id, account_id, transaction_id, center_id, amount_type, balance, amount, status, created_at, updated_at))
+
+        mysql.connection.commit()
+        cur.close()
+
+        response = {'code': '200', 'status': 'true', 'message': 'feesform added successfully'}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+        
+@app.route('/student/feesform/<int:feesform_id>', methods=['GET'])
+def get_feesform(feesform_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+    SELECT `fees_form`.*, user.name AS user_names, student.name AS student_names
+    FROM `fees_form`
+    INNER JOIN user ON user.id = `fees_form`.user_id 
+    INNER JOIN student ON student.id = `fees_form`.student_id 
+    WHERE `fees_form`.id = {feesform_id};
+""")
+    feesform = cur.fetchone()
+    cur.close()
+
+    if feesform:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        feesform_dict = dict(zip(column_names, feesform))
+
+        response = {'code': '200', 'status': 'true', 'data': feesform_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'feesform not found'}
+        return jsonify(response)
+
+@app.route('/student/feesform_id', methods=['GET'])
+def get_all_feesforms_id():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id, name FROM feesform")
+    feesforms = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for feesform in feesforms:
+        feesform_dict = dict(zip(column_names, feesform))
+        data_with_columns.append(feesform_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+@app.route('/student/feesform', methods=['POST'])
+def get_all_feesforms():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    student_id = data.get('student_id')
+    print(student_id)
+    print(center_id)
+    cur = mysql.connection.cursor()
+    if center_id =="0":
+        cur.execute(f"""
+    SELECT `fees_form`.*, user.name AS user_names
+    FROM `fees_form`
+    INNER JOIN user ON user.id = `fees_form`.user_id 
+    WHERE `fees_form`.student_id = {student_id};
+""")
+    else:
+        cur.execute(f"""
+    SELECT `fees_form`.*, user.name AS user_names
+    FROM `fees_form`
+    INNER JOIN user ON user.id = `fees_form`.user_id 
+    WHERE `fees_form`.center_id = {center_id} 
+    AND `fees_form`.student_id = {student_id};
+""")
+    feesforms = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+    cur.close()
+
+    data_with_columns = []
+    for feesform in feesforms:
+        feesform_dict = dict(zip(column_names, feesform))
+        data_with_columns.append(feesform_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+    # cur = mysql.connection.cursor()
+    # cur.execute("SELECT * FROM feesform")
+    # feesforms = cur.fetchall()
+    # cur.close()
+    
+    # print(feesforms)
+
+    # response = {'code': '200', 'status': 'true', 'data': feesforms}
+    # return jsonify(response)
+
+@app.route('/del_feesform/<int:id>', methods=['DELETE'])
+def delete_feesform(id):
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT * FROM `fees_form` WHERE id=%s", (id,))
+    feesform = cur.fetchone()
+    if feesform:
+        logo_path = feesform[2]
+        # delete the feesform from the database
+        cur.execute("DELETE FROM `fees_form` WHERE id= %s", (id,))
+        mysql.connection.commit()
+        # delete the feesform's logo file
+        os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+        return jsonify({'message': f'feesform with id {id} deleted successfully'})
+    else:
+        return jsonify({'message': f'feesform with id {id} not found'})
+
+
+@app.route('/student/upd_feesform/<int:feesform_id>', methods=['PUT'])
+def update_feesform(feesform_id): 
+    form = FeesForm(request.form)
+    if form.validate():
+        print(request.files)  # Print the entire request.files dictionary
+        logo = request.files.get('logo')  # Use .get() method to avoid KeyError
+        if logo is None:
+            # Handle the case where 'logo' is not present in the request
+            response = {'code': '400', 'status': 'false', 'message': 'Logo file not provided'}
+            return jsonify(response)
+        else:
+            # Continue processing the file upload
+            filename = logo.filename
+            # Rest of your file handling code...
+
+        center_id = form.center_id.data
+        user_id = form.user_id.data
+        student_id = form.student_id.data
+        date = form.date.data
+        amount = form.amount.data
+        amount_type = form.amount_type.data
+        description = form.description.data        
+        status = form.status.data
+        updated_at = form.updated_at.data
+                
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM `fees_form` WHERE id=%s", (feesform_id,))
+        Leave_Form = cur.fetchone()
+        print(Leave_Form)
+
+        if not Leave_Form:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'Leave_Form not found'}
+            return jsonify(final_response)
+        else:
+            logo_path = Leave_Form[6]
+            if logo_path and os.path.exists(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path)):
+                os.remove(os.path.join(app.config['UPLOADED_DIRECTORY'], logo_path))
+            filename = logo.filename
+            print(filename)
+            if filename != '':
+                file_ext = os.path.splitext(filename)[1]
+            if file_ext not in app.config['UPLOAD_EXTENSIONS']:
+                response = {'code':'E_400'}
+                return jsonify(response)
+            logo.save(f'uploads/{filename}')
+
+
+        cur.execute("UPDATE `fees_form` SET center_id=%s, student_id=%s, user_id=%s, date=%s, amount=%s, description=%s, amount_type=%s, slip_image=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, student_id, user_id, date, amount, description, amount_type,  str(filename), status, updated_at, feesform_id))
+        mysql.connection.commit()
+        cur.close()
+        
+        response = {'code': '200', 'status': 'true', 'message': 'Absent_Form updated successfully'}
+        return jsonify(response)
     else:
         final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
         return jsonify(final_response)
