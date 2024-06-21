@@ -578,7 +578,7 @@ def get_all_users():
         elif role == 'teacher':
             sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_3}) GROUP BY u.id"
             cur.execute(sql, abbas3)    
-    elif '2' in role_id:
+    else:
         if role == "coo":
             sql = f"SELECT u.*, GROUP_CONCAT(r.name) AS role_names FROM user u JOIN u_role r ON FIND_IN_SET(r.id, u.role_id) WHERE u.id IN ({placeholders_1}) GROUP BY u.id"
             cur.execute(sql, abbas)
@@ -3104,22 +3104,26 @@ def get_account_ids(center_id):
 def get_account(account_id):
     cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
-    accounts = cur.fetchone()
+    account = cur.fetchone()  # fetchone returns a single row as a tuple
     column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
     cur.close()
 
-    data_with_columns = []
-    for account in accounts:
-        account_dict = dict(zip(column_names, account))
-        data_with_columns.append(account_dict)
-
-    response = {
-        "code": "200",
-        "data": data_with_columns,
-        "status": "true"
-    }
+    if account is not None:
+        account_dict = dict(zip(column_names, account))  # zip column names with the fetched account tuple
+        response = {
+            "code": "200",
+            "data": account_dict,  # return the dictionary directly
+            "status": "true"
+        }
+    else:
+        response = {
+            "code": "404",
+            "message": "Account not found",
+            "status": "false"
+        }
 
     return jsonify(response)
+
 
 @app.route('/account', methods=['POST'])
 def get_all_account():
@@ -3163,36 +3167,42 @@ def delete_account(id):
 @app.route('/upd_account/<int:account_id>', methods=['PUT'])
 def update_account(account_id):
     form = AccountForm(request.form)
-    if form.validate():
-        center_id = form.center_id.data
-        name = form.name.data
-        balance = form.balance.data
-        status = form.status.data
-        updated_at = form.updated_at.data
+    if not form.validate():
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{field}: {error}", "error")
+        return jsonify(success=False, errors=form.errors)
+    ...
+    # if form.validate():
+    #     center_id = form.center_id.data
+    #     name = form.name.data
+    #     balance = form.balance.data
+    #     status = form.status.data
+    #     updated_at = form.updated_at.data
 
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
-        account = cur.fetchone()
+    #     cur = mysql.connection.cursor()
+    #     cur.execute("SELECT * FROM account WHERE id=%s", (account_id,))
+    #     account = cur.fetchone()
 
-        if not account:
-            cur.close()
-            final_response = {'code': '404', 'status': 'false', 'message': 'account not found'}
-            return jsonify(final_response)
-        else:
-            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
-            result = cur.fetchone()
-            if result:
-                cur.execute("UPDATE account SET center_id=%s, name=%s, balance=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, balance, status, updated_at, account_id))
-                mysql.connection.commit()
-                cur.close()
-                response = {'code': '200', 'status': 'true', 'message': 'account updated successfully'}
-                return jsonify(response)
-            else:
-                response = {'code': '400', 'status': 'false', 'message': 'account not updated successfully'}
-                return jsonify(response)
-    else:
-        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
-        return jsonify(final_response)
+    #     if not account:
+    #         cur.close()
+    #         final_response = {'code': '404', 'status': 'false', 'message': 'account not found'}
+    #         return jsonify(final_response)
+    #     else:
+    #         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+    #         result = cur.fetchone()
+    #         if result:
+    #             cur.execute("UPDATE account SET center_id=%s, name=%s, balance=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, balance, status, updated_at, account_id))
+    #             mysql.connection.commit()
+    #             cur.close()
+    #             response = {'code': '200', 'status': 'true', 'message': 'account updated successfully'}
+    #             return jsonify(response)
+    #         else:
+    #             response = {'code': '400', 'status': 'false', 'message': 'account not updated successfully'}
+    #             return jsonify(response)
+    # else:
+    #     final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+    #     return jsonify(final_response)
 
 # Transaction Apis ..........
 class TransactionForm(Form):
@@ -3591,9 +3601,8 @@ def add_group():
         print(name)
         cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
         result = cur.fetchone()
-        cur.execute("SELECT * FROM user WHERE id = %s", (subject_id,))
-        result_1 = cur.fetchone()
-        if result and result_1:
+        
+        if result:
             cur.execute(
                 "INSERT INTO `group`(center_id, subject_id, batch_id, class_id, name, status, created_at, updated_at) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)",
                 (center_id, subject_id, batch_id, class_id, name, status, created_at, updated_at)
