@@ -7,7 +7,8 @@ from wtforms import Form, StringField, IntegerField, validators
 class StudentForm(Form):
     name = StringField('Name', [validators.InputRequired()])
     email = StringField('Email', [validators.InputRequired(), validators.Email()])
-    phone = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
+    phone = StringField('Phone', [validators.InputRequired(), validators.Regexp(r'^\d{11}$', message='Phone number should be 11 digits')])
+    # phone = StringField('Phone', [validators.InputRequired(), validators.Regexp('^\d{11}$', message='Phone number should be 11 digits')])
 
 
 app = Flask(__name__)

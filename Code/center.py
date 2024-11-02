@@ -8,6 +8,9 @@ from collections import OrderedDict
 from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
+
+
 app.secret_key = 'many random bytes'
 app.config['MYSQL_HOST'] = '127.0.0.1'
 app.config['MYSQL_PORT'] = 3306
@@ -17,10 +20,14 @@ app.config['MYSQL_DB'] = 'center'
 app.config['UPLOADED_DIRECTORY'] = 'uploads/'
 app.config['UPLOAD_EXTENSIONS'] = ['.jpg','.png','.pdf']
 # app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
-app.config['CORS_ALLOW_ALL_ORIGINS'] = True
-CORS(app)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+# app.config['CORS_ALLOW_ALL_ORIGINS'] = True
+# CORS(app)
+# CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 # CORS(app, resources={r"/add_users": {"origins": "http://localhost:3000"}})
+
+# Enable CORS for specific frontend origin with credentials support
+
+
 mysql = MySQL(app)
 
 @app.route('/dropdown_center_id', methods=['GET'])
@@ -49,44 +56,75 @@ def get_all_cenyter_id():
 
 @app.route('/login', methods=['POST'])
 def add_users():
-    # form = UserForm(request.form)
     data = request.get_json()
-  
-    # if form.validate():
     email = data.get('email')
     password = data.get('password')
 
     cur = mysql.connection.cursor()
     cur.execute("""
-    SELECT user.*, 
-           (SELECT GROUP_CONCAT(rscreen.slug) 
-            FROM rscreen 
-            WHERE FIND_IN_SET(rscreen.id, u_role.screen_id) > 0) AS slugs
-    FROM user
-    JOIN u_role ON user.role_id = u_role.id
-    WHERE user.email = %s AND user.password = %s
-""", (email, password))
+        SELECT user.*, 
+               (SELECT GROUP_CONCAT(rscreen.slug) 
+                FROM rscreen 
+                WHERE FIND_IN_SET(rscreen.id, u_role.screen_id) > 0) AS slugs
+        FROM user
+        JOIN u_role ON user.role_id = u_role.id
+        WHERE user.email = %s AND user.password = %s
+    """, (email, password))
 
-
-
-
-
-    user = cur.fetchone()
-    print(user)
-    cur.close()
-    print(user)
+    user = cur.fetchone()  # Fetch the first result
     if user:
-        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
-
-        user_dict = dict(zip(column_names,user))
-        data = {'code': '200', 'status': 'true', 'data': user_dict}
-        return jsonify(data)
+        column_names = [desc[0] for desc in cur.description]  # Only fetch column names if user exists
+        user_dict = dict(zip(column_names, user))
+        cur.close()
+        
+        response_data = {'code': '200', 'status': 'true', 'data': user_dict}
+        return make_response(jsonify(response_data), 200)
     else:
-            # Authentication failed
-        return jsonify({'status': 'false', 'message': 'Invalid email or password'}), 401
+        cur.close()
+        # Authentication failed
+        return make_response(jsonify({'status': 'false', 'message': 'Invalid email or password'}), 401)
 
-    # # Handle the case where form validation fails
-    # return jsonify({'status': 'false', 'message': 'Invalid form data'}), 400
+
+# @app.route('/login', methods=['POST'])
+# def add_users():
+#     # form = UserForm(request.form)
+#     data = request.get_json()
+  
+#     # if form.validate():
+#     email = data.get('email')
+#     password = data.get('password')
+
+#     cur = mysql.connection.cursor()
+#     cur.execute("""
+#     SELECT user.*, 
+#            (SELECT GROUP_CONCAT(rscreen.slug) 
+#             FROM rscreen 
+#             WHERE FIND_IN_SET(rscreen.id, u_role.screen_id) > 0) AS slugs
+#     FROM user
+#     JOIN u_role ON user.role_id = u_role.id
+#     WHERE user.email = %s AND user.password = %s
+# """, (email, password))
+
+
+
+
+
+#     user = cur.fetchone()
+#     print(user)
+#     cur.close()
+#     print(user)
+#     if user:
+#         column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+#         user_dict = dict(zip(column_names,user))
+#         data = {'code': '200', 'status': 'true', 'data': user_dict}
+#         return jsonify(data)
+#     else:
+#             # Authentication failed
+#         return jsonify({'status': 'false', 'message': 'Invalid email or password'}), 401
+
+#     # # Handle the case where form validation fails
+#     # return jsonify({'status': 'false', 'message': 'Invalid form data'}), 400
 
 # Center Apis #..............................................................
 class CenterForm(Form):

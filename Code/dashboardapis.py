@@ -388,65 +388,103 @@ def get_card_data():
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s AND ctopic.month = %s AND ctopic.status = 1;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND cchapter.user_id = %s AND ctopic.month = %s AND ctopic.status = 1;
         """, (center_id, class_id, teacher_id, month))
         course_covered_present = cur.fetchone()[0]
+        
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s AND ctopic.month = %s;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND cchapter.user_id = %s AND ctopic.month = %s;
         """, (center_id, class_id, teacher_id, month))
         course = cur.fetchone()[0]
+
     elif teacher_id:
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s AND ctopic.status = 1;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND cchapter.user_id = %s AND ctopic.status = 1;
         """, (center_id, class_id, teacher_id))
         course_covered_present = cur.fetchone()[0]
+        
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND cchapter.user_id = %s;
         """, (center_id, class_id, teacher_id))
         course = cur.fetchone()[0]
+
     elif month:
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.month = %s AND ctopic.status = 1;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND ctopic.month = %s AND ctopic.status = 1;
         """, (center_id, class_id, month))
         course_covered_present = cur.fetchone()[0]
+        
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.month = %s;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND ctopic.month = %s;
         """, (center_id, class_id, month))
         course = cur.fetchone()[0]
+
     else:
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.status = 1;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND ctopic.status = 1;
         """, (center_id, class_id))
         course_covered_present = cur.fetchone()[0]
+        
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s;
         """, (center_id, class_id))
         course = cur.fetchone()[0]
 
-    course_covered = (int(course_covered_present)/int(course))*100
-    
+    course_covered = (int(course_covered_present) / int(course)) * 100
     # Card 4: Percentage of invigilator covered
     if teacher_id and month:
         cur.execute("""
@@ -577,36 +615,56 @@ def get_card_data():
 
     teacher_attendance = (int(teacher_attendance_present)/int(teacher))*100
     
-        # Card 6: Percentage of targeted course covered
+   # Card 6: Percentage of targeted course covered
     if teacher_id and month:
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s AND ctopic.month = %s;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND cchapter.user_id = %s AND ctopic.month = %s;
         """, (center_id, class_id, teacher_id, month))
         course_covered_present = cur.fetchone()[0]
+        
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND cchapter.user_id = %s;
         """, (center_id, class_id, teacher_id))
         course = cur.fetchone()[0]
+
     else:
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.month = %s;    
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON (class.subject_ids LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_ids LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_ids = cchapter.subject_id)
+            WHERE ctopic.center_id = %s AND class.id = %s AND ctopic.month = %s;
         """, (center_id, class_id, month))
         course_covered_present = cur.fetchone()[0]
+
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
             FROM ctopic
-            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
-            WHERE ctopic.center_id =%s AND cchapter.class_id = %s;    
-        """, (center_id, class_id,))
+            INNER JOIN cchapter ON cchapter.id = ctopic.chapter_id
+            INNER JOIN class ON class.id = %s
+                            AND (class.subject_id LIKE CONCAT('%,', cchapter.subject_id, ',%')
+                                OR class.subject_id LIKE CONCAT(cchapter.subject_id, ',%')
+                                OR class.subject_id LIKE CONCAT('%,', cchapter.subject_id)
+                                OR class.subject_id = cchapter.subject_id)
+            WHERE ctopic.center_id = %s;
+        """, (class_id, center_id))
         course = cur.fetchone()[0]       
     
     targeted_course_covered = (int(course_covered_present)/int(course))*100
@@ -1023,6 +1081,7 @@ def Teacher_Attendance():
         "attendance_data": attendance_data
     })
     #Invagilator attendance graph
+
 @app.route('/invigilator_attendance_graph', methods=['POST'])
 def Invigilator_Attendance():
     data = request.get_json()
