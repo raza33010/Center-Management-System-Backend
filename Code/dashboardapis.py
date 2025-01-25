@@ -577,7 +577,7 @@ def get_card_data():
 
     teacher_attendance = (int(teacher_attendance_present)/int(teacher))*100
     
-        # Card 6: Percentage of targeted course covered
+    # Card 6: Percentage of targeted course covered
     if teacher_id and month:
         cur.execute("""
             SELECT COUNT(ctopic.id) AS course_covered_present
