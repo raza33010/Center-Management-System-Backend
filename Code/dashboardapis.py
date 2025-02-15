@@ -1158,7 +1158,7 @@ def Invigilator_Attendance():
 #Academic.png Apis  ..........................................
 
     #academic cards data
-@app.route('/invigilator_attendance_graph', methods=['POST'])
+@app.route('/academic', methods=['POST'])
 def get_academic_Card_Data():
     data = request.get_json()
     center_id = data.get('center_id')
@@ -1369,6 +1369,215 @@ def get_academic_Card_Data():
 
 
 #Student.png Apis  .............................
+@app.route('/student', methods=['POST'])
+def get_student_Card_Data():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    class_id = data.get('class_id')
+    
+    if not center_id or not class_id:
+        return jsonify({"code": "400", "status": "false", "message": "center_id and class_id are required"}), 400
+
+    subject_id = data.get('subject_id')
+    month = data.get('month')
+    teacher_id = data.get('teacher_id')
+    student_id = data.get('student_id')
+    cur = mysql.connection.cursor()
+
+    # Card 4: Percentage of course covered
+    # if teacher_id and month:
+    #     cur.execute("""
+    #         SELECT COUNT(ctopic.id) AS course_covered_present
+    #         FROM ctopic
+    #         INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+    #         WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s AND ctopic.month = %s AND ctopic.status = 1;    
+    #     """, (center_id, class_id, teacher_id, month))
+    #     course_covered_present = cur.fetchone()[0]
+    #     cur.execute("""
+    #         SELECT COUNT(ctopic.id) AS course_covered_present
+    #         FROM ctopic
+    #         INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+    #         WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s AND ctopic.month = %s;    
+    #     """, (center_id, class_id, teacher_id, month))
+    #     course = cur.fetchone()[0]
+    # elif teacher_id:
+    #     cur.execute("""
+    #         SELECT COUNT(ctopic.id) AS course_covered_present
+    #         FROM ctopic
+    #         INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+    #         WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s AND ctopic.status = 1;    
+    #     """, (center_id, class_id, teacher_id))
+    #     course_covered_present = cur.fetchone()[0]
+    #     cur.execute("""
+    #         SELECT COUNT(ctopic.id) AS course_covered_present
+    #         FROM ctopic
+    #         INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+    #         WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s;    
+    #     """, (center_id, class_id, teacher_id))
+    #     course = cur.fetchone()[0]
+    # elif month:
+    #     cur.execute("""
+    #         SELECT COUNT(ctopic.id) AS course_covered_present
+    #         FROM ctopic
+    #         INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+    #         WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.month = %s AND ctopic.status = 1;    
+    #     """, (center_id, class_id, month))
+    #     course_covered_present = cur.fetchone()[0]
+    #     cur.execute("""
+    #         SELECT COUNT(ctopic.id) AS course_covered_present
+    #         FROM ctopic
+    #         INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+    #         WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.month = %s;    
+    #     """, (center_id, class_id, month))
+    #     course = cur.fetchone()[0]
+    # else:
+    #     cur.execute("""
+    #         SELECT COUNT(ctopic.id) AS course_covered_present
+    #         FROM ctopic
+    #         INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+    #         WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.status = 1;    
+    #     """, (center_id, class_id))
+    #     course_covered_present = cur.fetchone()[0]
+    #     cur.execute("""
+    #         SELECT COUNT(ctopic.id) AS course_covered_present
+    #         FROM ctopic
+    #         INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+    #         WHERE ctopic.center_id =%s AND cchapter.class_id = %s;    
+    #     """, (center_id, class_id))
+    #     course = cur.fetchone()[0]
+
+    # course_covered = (int(course_covered_present)/int(course))*100
+    
+    # Card 1: Percentage of Student  attendance
+    #integrated from Ali Raza system
+    # if student_id and month:
+    #     cur.execute("""
+    #      SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+    #         FROM teacher_attendance
+    #         INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+    #         WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.teacher_status = 'Present' AND timetable.user_id = %s AND teacher_attendance.date = %s; 
+    # """, (center_id, class_id, teacher_id, month))
+    #     teacher_attendance_present = cur.fetchone()[0]
+    #     cur.execute("""
+    #      SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+    #         FROM teacher_attendance
+    #         INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+    #         WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND   timetable.user_id = %s AND teacher_attendance.date = %s; 
+    # """, (center_id, class_id, teacher_id, month))
+    #     teacher = cur.fetchone()[0]
+    # elif teacher_id:
+    #     cur.execute("""
+    #      SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+    #         FROM teacher_attendance
+    #         INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+    #         WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.teacher_status = 'Present' AND timetable.user_id = %s; 
+    # """, (center_id, class_id, teacher_id))
+    #     teacher_attendance_present = cur.fetchone()[0]
+    #     cur.execute("""
+    #      SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+    #         FROM teacher_attendance
+    #         INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+    #         WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND timetable.user_id = %s; 
+    # """, (center_id, class_id, teacher_id))
+    #     teacher = cur.fetchone()[0]
+    # elif month:
+    #     cur.execute("""
+    #      SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+    #         FROM teacher_attendance
+    #         INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+    #         WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.teacher_status = 'Present' AND teacher_attendance.date = %s; 
+    # """, (center_id, class_id, month))
+    #     teacher_attendance_present = cur.fetchone()[0]
+    #     cur.execute("""
+    #      SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+    #         FROM teacher_attendance
+    #         INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+    #         WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.date = %s; 
+    # """, (center_id, class_id, month))
+    #     teacher = cur.fetchone()[0]
+    # else: 
+    #     cur.execute("""
+    #      SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+    #         FROM teacher_attendance
+    #         INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+    #         WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.teacher_status = 'Present'; 
+    # """, (center_id, class_id))
+    #     teacher_attendance_present = cur.fetchone()[0]
+    #     cur.execute("""
+    #      SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+    #         FROM teacher_attendance
+    #         INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+    #         WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s; 
+    # """, (center_id, class_id))
+    #     teacher = cur.fetchone()[0]   
+    
+
+    # teacher_attendance = (int(teacher_attendance_present)/int(teacher))*100
+    
+    # Card 3: Percentage of targeted course covered
+    if teacher_id and month:
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s AND ctopic.month = %s;    
+        """, (center_id, class_id, teacher_id, month))
+        course_covered_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id = %s;    
+        """, (center_id, class_id, teacher_id))
+        course = cur.fetchone()[0]
+    else:
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.month = %s;    
+        """, (center_id, class_id, month))
+        course_covered_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s;    
+        """, (center_id, class_id,))
+        course = cur.fetchone()[0]       
+    
+    targeted_course_covered = (int(course_covered_present)/int(course))*100
+
+    
+    # card 2:subject average
+    if month and subject_id:
+        cur.execute("""
+            SELECT SUM(r.number) AS total_marks
+            FROM results r
+            WHERE r.center_id =%s AND r.class_id = %s AND r.subject_id = %s AND r.month = %s;    
+        """, (center_id, class_id, subject_id, month))
+        total_marks = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(r.id) AS total_student
+            FROM results r
+            WHERE r.center_id =%s AND r.class_id = %s AND r.subject_id = %s;    
+        """, (center_id, class_id, subject_id))
+        total_student = cur.fetchone()[0]
+    else:
+        cur.execute("""
+            SELECT SUM(r.number) AS total_marks
+            FROM results r
+            WHERE r.center_id =%s AND r.class_id = %s AND r.month = %s;    
+        """, (center_id, class_id, month))
+        total_marks= cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(r.id) AS total_student
+            FROM results r
+            WHERE r.center_id =%s AND r.class_id = %s AND r.subject_id = %s;    
+        """, (center_id, class_id, subject_id))
+        total_student= cur.fetchone()[0]
+    class_average= (int(total_marks)/int(total_student))*100
+    cur.close()
 
 #SubjectResults.png Apis. ...............................
 
