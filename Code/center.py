@@ -1288,11 +1288,11 @@ ORDER BY id DESC
 LIMIT 1;
 """)
             id = cur.fetchone()
-            id = str(id)
+            sid = str(id)
             cur.execute(f"SELECT name FROM batch WHERE id = {batch_id}")
             batch = cur.fetchone()
-            batch = str(batch)
-            roll_no = batch+'-'+id
+            sbatch = str(batch)
+            roll_no = sbatch+'-'+sid
             cur.execute("INSERT INTO student(image, name, phone, father_name, father_phone, email, address, bform, roll_no, center_id, batch_id, class_id, status, created_at, updated_at, group_id, description, ref_name, ref_phone_no, last_class, last_grade, percentage, marksheet) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (str(filename), name, phone, father_name, father_phone, email, address, str(filename1), roll_no, center_id, batch_id, class_id, status, created_at, updated_at, group_id, description, ref_name, ref_phone_no, last_class, last_grade, percentage, str(filename2)))
             mysql.connection.commit()
             cur.close()
@@ -1706,6 +1706,7 @@ def get_all_subjects():
 def get_all_subject():
     data = request.get_json()
     center_id = data.get('center_id')
+    user_id = data.get('user_id')
     cur = mysql.connection.cursor()
     if center_id == '0':            
         cur.execute(f"""
@@ -1718,17 +1719,29 @@ def get_all_subject():
 
         """)
     else:
-        cur.execute(f"""
-            SELECT
-        s.*,
-        GROUP_CONCAT(u.name) AS user_names
-    FROM subject s
-    JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
-    WHERE s.center_id = {center_id}
-    GROUP BY s.id ;
+        if user_id:
+            cur.execute(f"""
+                SELECT
+            s.*,
+            GROUP_CONCAT(u.name) AS user_names
+        FROM subject s
+        JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+        WHERE s.center_id = {center_id} AND s.user_id = {user_id}
+        GROUP BY s.id ;
 
-        """)
+            """)
+        else:
+            cur.execute(f"""
+                SELECT
+            s.*,
+            GROUP_CONCAT(u.name) AS user_names
+        FROM subject s
+        JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+        WHERE s.center_id = {center_id}
+        GROUP BY s.id ;
 
+            """)
+            
     subjects = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]
     cur.close()
@@ -4852,7 +4865,7 @@ class TeacherForm(Form):
     center_id = IntegerField('Center ID', [validators.InputRequired()])
     user_id = IntegerField('Subjects ID', [validators.InputRequired()])
     class_id = IntegerField('Subjects ID', [validators.InputRequired()])
-    subject_id = IntegerField('Subjects ID', [validators.InputRequired()])
+    subject_id = StringField('Subjects ID', [validators.InputRequired()])
     status = IntegerField('Status', [
         validators.InputRequired(),
         validators.AnyOf([0, 1], 'Must be 0 or 1')
@@ -4893,13 +4906,17 @@ def add_teacher():
 def get_teacher(teacher_id):
     cur = mysql.connection.cursor()
     cur.execute(f"""
-            SELECT `teacher`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
-FROM `teacher`
-INNER JOIN user ON user.id=`teacher`.user_id
-INNER JOIN class ON class.id=`teacher`.class_id
-INNER JOIN subject ON subject.id=`teacher`.subject_id 
-WHERE `teacher`.id ={teacher_id};
-
+             SELECT
+       teacher.*,
+        GROUP_CONCAT(s.name) AS subject_names,
+        u.name AS user_names,
+        c.name AS class_names
+    FROM teacher 
+    JOIN subject s ON FIND_IN_SET(s.id, teacher.subject_id) > 0
+    JOIN class c ON c.id = teacher.class_id
+    JOIN user u ON u.id =teacher.user_id
+    WHERE teacher.id = {teacher_id}
+    GROUP BY teacher.id ;
         """)
     subject = cur.fetchone()
     cur.close()
@@ -4972,23 +4989,31 @@ def get_all_teacher():
     cur = mysql.connection.cursor()
     if center_id == '0':
         cur.execute(f"""
-                SELECT `teacher`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
-    FROM `teacher`
-    INNER JOIN user ON user.id=`teacher`.user_id
-    INNER JOIN class ON class.id=`teacher`.class_id
-    INNER JOIN subject ON subject.id=`teacher`.subject_id;
-
+                 SELECT
+       teacher.*,
+        GROUP_CONCAT(s.name) AS subject_names,
+        u.name AS user_names,
+        c.name AS class_names
+    FROM teacher 
+    JOIN subject s ON FIND_IN_SET(s.id, teacher.subject_id) > 0
+    JOIN class c ON c.id = teacher.class_id
+    JOIN user u ON u.id =teacher.user_id
+    GROUP BY teacher.id ;
             """)        
     else: 
         cur.execute(f"""
-                SELECT `teacher`.*,user.name AS user_names ,class.name AS class_names ,subject.name AS subject_names
-    FROM `teacher`
-    INNER JOIN user ON user.id=`teacher`.user_id
-    INNER JOIN class ON class.id=`teacher`.class_id
-    INNER JOIN subject ON subject.id=`teacher`.subject_id 
-    WHERE `teacher`.center_id ={center_id};
-
-            """)
+               SELECT
+       teacher.*,
+        GROUP_CONCAT(s.name) AS subject_names,
+        u.name AS user_names,
+        c.name AS class_names
+    FROM teacher 
+    JOIN subject s ON FIND_IN_SET(s.id, teacher.subject_id) > 0
+    JOIN class c ON c.id = teacher.class_id
+    JOIN user u ON u.id =teacher.user_id
+    WHERE teacher.center_id = {center_id}
+    GROUP BY teacher.id ;
+ """)
     subjects = cur.fetchall()
     print(subjects)
     column_names = [desc[0] for desc in cur.description]
@@ -5273,6 +5298,9 @@ def update_awardlist(awardlist_id):
             result_5 = cur.fetchone()        
             if result and result_3 and result_4 and result_5:
                 total_marks = int(subject_dict['total_marks'])
+                if int(obtain_number)>total_marks:
+                    response = {'code': '200', 'status': 'true', 'message': 'Enter lesseer number than the total number'}
+                    return jsonify(response) 
                 percentage = (int(obtain_number)/total_marks)*100
                 print(int(percentage))
                 print(total_marks)

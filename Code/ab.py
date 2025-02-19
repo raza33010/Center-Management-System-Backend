@@ -1,4 +1,4 @@
-def ArrayChallenge(strArr):
+ def ArrayChallenge(strArr):
     No_of_gas_station = int(strArr[0])
     gas_stations = [tuple(map(int, station.split(":"))) for station in strArr[1:]]
 

@@ -1,0 +1,829 @@
+import os
+from flask import Flask, request, flash, jsonify, make_response
+from flask_mysqldb import MySQL
+from wtforms import Form, StringField, IntegerField, validators, DateTimeField, DecimalField, DateField, TimeField, PasswordField, SelectMultipleField
+from datetime import datetime
+from flask_wtf.file import FileField, FileAllowed, FileRequired
+from collections import OrderedDict
+from flask_cors import CORS
+
+app = Flask(__name__)
+app.secret_key = 'many random bytes'
+app.config['MYSQL_HOST'] = 'localhost'
+app.config['MYSQL_USER'] = 'root'
+app.config['MYSQL_PASSWORD'] = ''
+app.config['MYSQL_DB'] = 'center'
+app.config['UPLOADED_DIRECTORY'] = 'uploads/'
+app.config['UPLOAD_EXTENSIONS'] = ['.jpg','.png','.pdf']
+# app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
+app.config['CORS_ALLOW_ALL_ORIGINS'] = True
+CORS(app)
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+# CORS(app, resources={r"/add_users": {"origins": "http://localhost:3000"}})
+mysql = MySQL(app)
+
+
+# Subject Apis #..............................................................
+class SubjectForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    user_id = StringField('User ID', [validators.InputRequired()])
+    # status = IntegerField('Status', [
+    #     validators.InputRequired(),
+    #     validators.AnyOf([0, 1], 'Must be 0 or 1')
+    # ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+class USubjectForm(Form):
+    center_id = IntegerField('Center ID', [validators.InputRequired()])
+    name = StringField('Name', [validators.InputRequired()])
+    user_id = StringField('User ID', [validators.InputRequired()])
+    status = IntegerField('Status', [
+        validators.InputRequired(),
+        validators.AnyOf([0, 1], 'Must be 0 or 1')
+    ])
+    created_at = DateTimeField('Created At', default=datetime.utcnow)
+    updated_at = DateTimeField('Updated At', default=datetime.utcnow)
+
+
+@app.route('/add_subject', methods=['POST'])
+def add_subject():
+    form = SubjectForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        user_id = form.user_id.data
+        created_at = form.created_at.data
+        updated_at = form.updated_at.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+        result = cur.fetchone()
+        cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
+        result_1 = cur.fetchone()
+        if result and result_1:
+            cur.execute("INSERT INTO subject(center_id, name, user_id, created_at, updated_at) VALUES( %s, %s, %s, %s, %s)", (center_id, name, user_id, created_at, updated_at))
+            mysql.connection.commit()
+            cur.close()
+            response = {'code': '200', 'status': 'true', 'message': 'Subject added successfully'}
+            return jsonify(response)
+        else:
+            response = {'code': '400', 'status': 'false', 'message': 'Invalid center ID'}
+            return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(response)
+
+
+
+
+@app.route('/subject/<int:subject_id>', methods=['GET'])
+def get_subject(subject_id):
+    cur = mysql.connection.cursor()
+    cur.execute(f"""
+        SELECT
+    s.*,
+    GROUP_CONCAT(u.name) AS user_names
+FROM subject s
+JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+WHERE s.id = {subject_id}
+GROUP BY s.id ;
+
+    """)
+    subject = cur.fetchone()
+    cur.close()
+
+    if subject:
+        column_names = [desc[0] for desc in cur.description]  # Get column names from cursor description
+
+        subject_dict = dict(zip(column_names, subject))
+
+        response = {'code': '200', 'status': 'true', 'data': subject_dict}
+        return jsonify(response)
+    else:
+        response = {'code': '400', 'status': 'false', 'message': 'user not found'}
+        return jsonify(response)
+
+
+@app.route('/subjects', methods=['POST'])
+def get_all_subjects():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    print(center_id)
+    cur = mysql.connection.cursor()
+    cur.execute(f"SELECT id, name FROM subject WHERE  center_id = {center_id}")
+    Uroles = cur.fetchall()
+    print(Uroles)
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/subject', methods=['POST'])
+def get_all_subject():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    user_id = data.get('user_id')
+    cur = mysql.connection.cursor()
+    if center_id == '0':            
+        cur.execute(f"""
+            SELECT
+        s.*,
+        GROUP_CONCAT(u.name) AS user_names
+    FROM subject s
+    JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+    GROUP BY s.id ;
+
+        """)
+    else:
+        if user_id:
+            cur.execute(f"""
+                SELECT
+            s.*,
+            GROUP_CONCAT(u.name) AS user_names
+        FROM subject s
+        JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+        WHERE s.center_id = {center_id} AND s.user_id = {user_id}
+        GROUP BY s.id ;
+
+            """)
+        else:
+            cur.execute(f"""
+                SELECT
+            s.*,
+            GROUP_CONCAT(u.name) AS user_names
+        FROM subject s
+        JOIN user u ON FIND_IN_SET(u.id, s.user_id) > 0
+        WHERE s.center_id = {center_id}
+        GROUP BY s.id ;
+
+            """)
+            
+    subjects = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for subject in subjects:
+        user_dict = dict(zip(column_names, subject))
+        # Split the role_names into a list
+        user_dict['user_names'] = user_dict['user_names'].split(',')
+        data_with_columns.append(user_dict)
+
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+@app.route('/del_subject/<int:id>', methods=['DELETE'])
+def delete_subject(id):
+    cur = mysql.connection.cursor()
+    user = cur.execute(f"DELETE FROM subject WHERE id={id}")
+    mysql.connection.commit()
+    cur.close()
+    if user > 0:
+        final_response = {'code': '200', 'status': 'true', 'message': 'user found', 'data': user}
+        return jsonify(final_response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'user not found', 'data': user}
+        return jsonify(final_response)
+
+
+@app.route('/upd_subject/<int:subject_id>', methods=['PUT'])
+def update_subject(subject_id):
+    form = USubjectForm(request.form)
+    if form.validate():
+        center_id = form.center_id.data
+        name = form.name.data
+        user_id = form.user_id.data
+        status = form.status.data
+        updated_at = form.updated_at.data
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM subject WHERE id=%s", (subject_id,))
+        role = cur.fetchone()
+
+        if not role:
+            cur.close()
+            final_response = {'code': '404', 'status': 'false', 'message': 'role not found'}
+            return jsonify(final_response) 
+        else:
+            cur.execute("SELECT * FROM center WHERE id = %s", (center_id,))
+            result = cur.fetchone()
+            cur.execute("SELECT * FROM user WHERE id = %s", (user_id,))
+            result_1 = cur.fetchone()
+            if result and result_1:
+                cur.execute("UPDATE subject SET center_id=%s, name=%s, user_id=%s, status=%s, updated_at=%s WHERE id=%s", (center_id, name, user_id, status, updated_at, subject_id))
+                mysql.connection.commit()
+                cur.close()
+                response = {'code': '200', 'status': 'true', 'message': 'subject updated successfully'}
+                return jsonify(response)
+            else:
+                response = {'code': '400', 'status': 'false', 'message': 'subject not updated successfully'}
+                return jsonify(response)
+    else:
+        final_response = {'code': '400', 'status': 'false', 'message': 'Invalid input'}
+        return jsonify(final_response)
+
+# Dashboard api ...................................................................
+
+
+
+
+
+
+# Home Page Apis.......................................
+
+
+
+
+# for subject drop down........................
+@app.route('/subject_dropdown', methods=['POST'])
+def subject_dropdown():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    class_id = data.get('class_id')
+    cur = mysql.connection.cursor()
+    cur.execute("""
+                SELECT teacher.subject_id, subject.name AS subject_names
+FROM teacher
+INNER JOIN subject ON subject.id= teacher.subject_id 
+WHERE teacher.center_id =%s AND teacher.class_id = %s;
+                
+                """, (center_id,class_id,))
+
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+# for student drop down........................
+@app.route('/student_dropdown', methods=['POST'])
+def student_dropdown():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    class_id = data.get('class_id')
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT id,name FROM student WHERE center_id=%s AND class_id=%s", (center_id,class_id,))
+
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+# for teacher drop down........................
+@app.route('/teacher_dropdown', methods=['POST'])
+def teacher_dropdown():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    class_id = data.get('class_id')
+    cur = mysql.connection.cursor()
+    cur.execute("""
+                SELECT teacher.id, user.name AS user_names
+FROM teacher
+INNER JOIN user ON user.id= teacher.user_id 
+WHERE teacher.center_id =%s AND teacher.class_id = %s;
+                
+                """, (center_id,class_id,))
+
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+# for home page card........................
+@app.route('/home_card_data', methods=['POST'])
+def get_card_data():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    class_id = data.get('class_id')
+    
+    if not center_id or not class_id:
+        return jsonify({"code": "400", "status": "false", "message": "center_id and class_id are required"}), 400
+
+    subject_id = data.get('subject_id')
+    month = data.get('month')
+    teacher_id = data.get('teacher_id')
+    student_id = data.get('student_id')
+    
+    cur = mysql.connection.cursor()
+    
+    # Card 1: Count for teachers
+    if teacher_id:
+        cur.execute("""
+        SELECT COUNT(id) AS teacher_count
+        FROM teacher
+        WHERE center_id = %s AND class_id = %s AND user_id IN %s
+    """, (center_id, class_id, teacher_id))
+    else:
+        cur.execute("""
+        SELECT COUNT(id) AS teacher_count
+        FROM teacher
+        WHERE center_id = %s AND class_id = %s
+    """, (center_id, class_id))
+    teacher_count = cur.fetchone()[0]
+    
+    # Card 2: Count for students
+    if student_id:
+        cur.execute("""
+        SELECT COUNT(id) AS student_count
+        FROM student
+        WHERE center_id = %s AND class_id = %s AND id IN %s
+    """, (center_id, class_id, student_id))
+    else:
+        cur.execute("""
+        SELECT COUNT(id) AS student_count
+        FROM student
+        WHERE center_id = %s AND class_id = %s
+    """, (center_id, class_id))
+
+    student_count = cur.fetchone()[0]
+    
+    # Card 3: Percentage of course covered
+    if teacher_id and month:
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id IN %s AND ctopic.month IN %s AND ctopic.status = 1;    
+        """, (center_id, class_id, teacher_id, month))
+        course_covered_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id IN %s AND ctopic.month IN %s;    
+        """, (center_id, class_id, teacher_id, month))
+        course = cur.fetchone()[0]
+    elif teacher_id:
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id IN %s AND ctopic.status = 1;    
+        """, (center_id, class_id, teacher_id))
+        course_covered_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id IN %s;    
+        """, (center_id, class_id, teacher_id))
+        course = cur.fetchone()[0]
+    elif month:
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.month IN %s AND ctopic.status = 1;    
+        """, (center_id, class_id, month))
+        course_covered_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.month IN %s;    
+        """, (center_id, class_id, month))
+        course = cur.fetchone()[0]
+    else:
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.status = 1;    
+        """, (center_id, class_id))
+        course_covered_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s;    
+        """, (center_id, class_id))
+        course = cur.fetchone()[0]
+
+    course_covered = (int(course_covered_present)/int(course))*100
+    
+    # Card 4: Percentage of invigilator covered
+    if teacher_id and month:
+        cur.execute("""
+            SELECT COUNT(duty.id) AS invigilator_attendance_present
+            FROM duty
+            INNER JOIN teacher ON teacher.user_id= duty.user_id 
+            WHERE duty.center_id =%s AND teacher.class_id = %s AND duty.job = 'invagilator' AND duty.status = 1 AND duty.user_id IN %s AND duty.date IN %s;    
+        """, (center_id, class_id, teacher_id, month))
+        invigilator_attendance_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(duty.id) AS invigilator_attendance_present
+            FROM duty
+            INNER JOIN teacher ON teacher.user_id= duty.user_id 
+            WHERE duty.center_id =%s AND teacher.class_id = %s AND duty.job = 'invagilator' AND duty.user_id IN %s AND duty.date IN %s;    
+        """, (center_id, class_id, teacher_id, month))
+        invigilator = cur.fetchone()[0]
+    elif teacher_id:
+        cur.execute("""
+            SELECT COUNT(duty.id) AS invigilator_attendance_present
+            FROM duty
+            INNER JOIN teacher ON teacher.user_id= duty.user_id 
+            WHERE duty.center_id =%s AND teacher.class_id = %s AND duty.job = 'invagilator' AND duty.status = 1 AND duty.user_id IN %s;    
+        """, (center_id, class_id, teacher_id))
+        invigilator_attendance_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(duty.id) AS invigilator_attendance_present
+            FROM duty
+            INNER JOIN teacher ON teacher.user_id= duty.user_id 
+            WHERE duty.center_id =%s AND teacher.class_id = %s AND duty.job = 'invagilator' AND duty.user_id IN %s;    
+        """, (center_id, class_id, teacher_id))
+        invigilator = cur.fetchone()[0]
+    elif month:
+        cur.execute("""
+            SELECT COUNT(duty.id) AS invigilator_attendance_present
+            FROM duty
+            INNER JOIN teacher ON teacher.user_id= duty.user_id 
+            WHERE duty.center_id =%s AND teacher.class_id = %s AND duty.job = 'invagilator' AND duty.status = 1 AND duty.date IN %s;    
+        """, (center_id, class_id, month))
+        invigilator_attendance_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(duty.id) AS invigilator_attendance_present
+            FROM duty
+            INNER JOIN teacher ON teacher.user_id= duty.user_id 
+            WHERE duty.center_id =%s AND teacher.class_id = %s AND duty.job = 'invagilator' AND duty.date IN %s;    
+        """, (center_id, class_id, month))
+        invigilator = cur.fetchone()[0]
+    else:
+        cur.execute("""
+            SELECT COUNT(duty.id) AS invigilator_attendance_present
+            FROM duty
+            INNER JOIN teacher ON teacher.user_id= duty.user_id 
+            WHERE duty.center_id =%s AND teacher.class_id = %s AND duty.job = 'invagilator' AND duty.status = 1;    
+        """, (center_id, class_id))
+        invigilator_attendance_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(duty.id) AS invigilator_attendance_present
+            FROM duty
+            INNER JOIN teacher ON teacher.user_id= duty.user_id 
+            WHERE duty.center_id =%s AND teacher.class_id = %s AND duty.job = 'invagilator';    
+        """, (center_id, class_id))
+        invigilator = cur.fetchone()[0]
+    
+    invigilator_attendance = (int(invigilator_attendance_present)/int(invigilator))*100
+    
+    # Card 5: Percentage of teacher attendance
+    
+    if teacher_id and month:
+        cur.execute("""
+         SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+            FROM teacher_attendance
+            INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+            WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.teacher_status = 'Present' AND timetable.user_id IN %s AND teacher_attendance.date IN %s; 
+    """, (center_id, class_id, teacher_id, month))
+        teacher_attendance_present = cur.fetchone()[0]
+        cur.execute("""
+         SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+            FROM teacher_attendance
+            INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+            WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND   timetable.user_id IN %s AND teacher_attendance.date IN %s; 
+    """, (center_id, class_id, teacher_id, month))
+        teacher = cur.fetchone()[0]
+    elif teacher_id:
+        cur.execute("""
+         SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+            FROM teacher_attendance
+            INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+            WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.teacher_status = 'Present' AND timetable.user_id IN %s; 
+    """, (center_id, class_id, teacher_id))
+        teacher_attendance_present = cur.fetchone()[0]
+        cur.execute("""
+         SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+            FROM teacher_attendance
+            INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+            WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND timetable.user_id IN %s; 
+    """, (center_id, class_id, teacher_id))
+        teacher = cur.fetchone()[0]
+    elif month:
+        cur.execute("""
+         SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+            FROM teacher_attendance
+            INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+            WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.teacher_status = 'Present' AND teacher_attendance.date IN %s; 
+    """, (center_id, class_id, month))
+        teacher_attendance_present = cur.fetchone()[0]
+        cur.execute("""
+         SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+            FROM teacher_attendance
+            INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+            WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.date IN %s; 
+    """, (center_id, class_id, month))
+        teacher = cur.fetchone()[0]
+    else:
+        cur.execute("""
+         SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+            FROM teacher_attendance
+            INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+            WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s AND teacher_attendance.teacher_status = 'Present'; 
+    """, (center_id, class_id))
+        teacher_attendance_present = cur.fetchone()[0]
+        cur.execute("""
+         SELECT COUNT(teacher_attendance.id) AS teacher_attendance_present
+            FROM teacher_attendance
+            INNER JOIN timetable ON timetable.id= teacher_attendance.timetable_id 
+            WHERE teacher_attendance.center_id =%s AND timetable.class_id = %s; 
+    """, (center_id, class_id))
+        teacher = cur.fetchone()[0]   
+    
+
+    teacher_attendance = (int(teacher_attendance_present)/int(teacher))*100
+    
+        # Card 6: Percentage of targeted course covered
+    if teacher_id and month:
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id IN %s AND ctopic.month IN %s;    
+        """, (center_id, class_id, teacher_id, month))
+        course_covered_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND cchapter.user_id IN %s;    
+        """, (center_id, class_id, teacher_id))
+        course = cur.fetchone()[0]
+    else:
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s AND ctopic.month IN %s;    
+        """, (center_id, class_id, month))
+        course_covered_present = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(ctopic.id) AS course_covered_present
+            FROM ctopic
+            INNER JOIN cchapter ON cchapter.id= ctopic.chapter_id 
+            WHERE ctopic.center_id =%s AND cchapter.class_id = %s;    
+        """, (center_id, class_id,))
+        course = cur.fetchone()[0]       
+    
+    targeted_course_covered = (int(course_covered_present)/int(course))*100
+    
+    
+    cur.close()
+    
+    response = {
+        "code": "200",
+        "status": "true",
+        "data": {
+            "teacher_count": teacher_count,
+            "student_count": student_count,
+            "course_covered": course_covered,
+            "invigilator_attendance": invigilator_attendance,
+            "teacher_attendance": teacher_attendance,
+            "targeted_course_covered": targeted_course_covered,
+        }
+    }
+    
+    return jsonify(response)
+
+@app.route('/average_graph', methods=['POST'])
+def average_graph():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    class_id = data.get('class_id')
+    subject_id = data.get('subject_id')
+    month = data.get('month')
+    teacher_id = data.get('teacher_id')
+    student_id = data.get('student_id')
+
+    # Start building the SQL query
+    query = """
+        SELECT month, AVG(percentage) AS average_percentage
+        FROM results
+        WHERE center_id = %s AND class_id = %s
+    """
+    
+    # Prepare parameters and append optional filters
+    params = [center_id, class_id]
+    
+    if subject_id:
+        query += " AND subject_id IN %s"
+        params.append(subject_id)
+    
+    if month:
+        query += " AND month IN %s"
+        params.append(month)
+    
+    if teacher_id:
+        query += " AND teacher_id IN %s"
+        params.append(teacher_id)
+    
+    if student_id:
+        query += " AND student_id IN %s"
+        params.append(student_id)
+    
+    # Group by month
+    query += " GROUP BY month"
+    
+    # Execute the query
+    cur = mysql.connection.cursor()
+    cur.execute(query, tuple(params))
+    
+    Uroles = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    
+    data_with_columns = []
+    for Urole in Uroles:
+        Urole_dict = dict(zip(column_names, Urole))
+        data_with_columns.append(Urole_dict)
+
+    response = {
+        "code": "200",
+        "data": data_with_columns,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+
+
+
+# Result.png .......................................
+
+
+@app.route('/grade_count_graph', methods=['POST'])
+def grade_count():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    class_id = data.get('class_id')
+    subject_id = data.get('subject_id')
+    month = data.get('month')
+    teacher_id = data.get('teacher_id')
+    student_id = data.get('student_id')
+
+    # Start building the SQL query
+    query = """
+        SELECT grade, COUNT(*) AS count
+        FROM results
+        WHERE center_id = %s AND class_id = %s
+    """
+    
+    # Prepare parameters and append optional filters
+    params = [center_id, class_id]
+    
+    if subject_id:
+        query += " AND subject_id IN %s"
+        params.append(subject_id)
+    
+    if month:
+        query += " AND month IN %s"
+        params.append(month)
+    
+    if teacher_id:
+        query += " AND teacher_id IN %s"
+        params.append(teacher_id)
+    
+    if student_id:
+        query += " AND student_id IN %s"
+        params.append(student_id)
+    
+    # Group by grade
+    query += " GROUP BY grade"
+    
+    # Execute the query
+    cur = mysql.connection.cursor()
+    cur.execute(query, tuple(params))
+    
+    grade_counts = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    
+    # Convert result to JSON format
+    grade_count_dict = {}
+    for grade_count in grade_counts:
+        grade, count = grade_count
+        grade_count_dict[grade] = count
+
+    response = {
+        "code": "200",
+        "data": grade_count_dict,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+# studuent average graph
+@app.route('/student_average', methods=['POST'])
+def student_average():
+    data = request.get_json()
+    center_id = data.get('center_id')
+    class_id = data.get('class_id')
+    subject_id = data.get('subject_id')
+    month = data.get('month')
+    teacher_id = data.get('teacher_id')
+    student_id = data.get('student_id')
+
+    # Start building the SQL query
+    query = """
+        SELECT s.name, AVG(r.percentage) AS average_percentage
+        FROM results r
+        JOIN student s ON r.student_id = s.id
+        WHERE r.center_id = %s AND r.class_id = %s
+    """
+    
+    # Prepare parameters and append optional filters
+    params = [center_id, class_id]
+    
+    if subject_id:
+        query += " AND r.subject_id IN %s"
+        params.append(subject_id)
+    
+    if month:
+        query += " AND r.month IN %s"
+        params.append(month)
+    
+    if teacher_id:
+        query += " AND r.teacher_id IN %s"
+        params.append(teacher_id)
+    
+    if student_id:
+        query += " AND r.student_id IN %s"
+        params.append(student_id)
+    
+    # Group by student_name
+    query += " GROUP BY s.name"
+    
+    # Execute the query
+    cur = mysql.connection.cursor()
+    cur.execute(query, tuple(params))
+    
+    student_averages = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    cur.close()
+    
+    # Convert result to JSON format
+    student_average_dict = {}
+    for student_average in student_averages:
+        student_name, average_percentage = student_average
+        student_average_dict[student_name] = average_percentage
+
+    response = {
+        "code": "200",
+        "data": student_average_dict,
+        "status": "true"
+    }
+
+    return jsonify(response)
+
+
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
